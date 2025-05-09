@@ -91,7 +91,7 @@ def extract_data(nome_arquivo):  # Alterei o nome da função para algo mais gen
     return dados
 
 # Exemplo de uso:
-pdf_path = './PDFs/Cotia'
+pdf_path = './PDFs/Barueri'
 lista_arquivos = os.listdir(pdf_path)
 qt_arquivos = 0
 
