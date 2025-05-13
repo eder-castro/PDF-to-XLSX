@@ -26,8 +26,8 @@ for subpath in os.listdir(path): #Para
 
         if "Flori" in subpath:
             # Número da Nota Fiscal Florianópolis
-            numero_nfse_match = re.search(r",..\s*(\d+)Número da NFS-e", text)
-            dados["Numero_NFSe"] = numero_nfse_match.group(1).strip() if numero_nfse_match else None
+            numero_nota_match = re.search(r",..\s*(\d+)Número da NFS-e", text)
+            dados["Numero_NFSe"] = numero_nota_match.group(1).strip() if numero_nota_match else None
 
             # Definindo bloco Prestador de Serviços para Floripa
             prestador_bloco_match = re.search(r"PRESTADOR DE SERVIÇOS(.+?)TOMADOR DE SERVIÇOS", text, re.DOTALL)
