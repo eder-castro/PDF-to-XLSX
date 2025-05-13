@@ -45,23 +45,33 @@ for subpath in os.listdir(path): #Para
         
             # Definindo bloco Tomador de Serviços para SP
             tomador_bloco_match = re.search(r"TOMADOR DE SERVIÇOS(.+?)UF:", text, re.DOTALL)
+
         elif "Cotia" in subpath:
-            # Número da Nota Fiscal SP
+            # Número da Nota Fiscal COTIA
             numero_nota_match = re.search(r"Nota:\s*(\d+)", text)
             dados["Numero_Nota"] = numero_nota_match.group(1).strip() if numero_nota_match else None
-
-            # Definindo bloco Prestador de Serviços para COTIA
-            #prestador_bloco_match = re.search(r"PRESTADOR DE SERVIÇOS(.+?)TOMADOR DE SERVIÇOS", text, re.DOTALL)
-        
-            # Definindo bloco Tomador de Serviços para COTIA
-            #tomador_bloco_match = re.search(r"TOMADOR DE SERVIÇOS(.+?)UF:", text, re.DOTALL)
 
             # Definindo bloco Prestador de Serviços para COTIA
             prestador_bloco_match = re.search(r"PRESTADOR DE SERVIÇOS(.+?): BRASIL", text, re.DOTALL)
             
             # Definindo bloco Tomador de Serviços para COTIA
             tomador_bloco_match = re.search(r"SECRETARIA DA FAZENDA(.+?)ADMINISTRACAO DE CONDOMINIO", text, re.DOTALL)
+        elif "SBC" in subpath:
+            # Número da Nota Fiscal SBC
+            numero_nota_match = re.search(r"Competência(\d+)", text)
+            dados["Numero_Nota"] = numero_nota_match.group(1).strip() if numero_nota_match else None
+
+            # Definindo bloco Prestador de Serviços para SBC
+            prestador_bloco_match = re.search(r"Dados do Prestador de Serviços\s+Razão Social / Nome\s*\n(.+?)Dados do Tomador de Serviços", text, re.DOTALL)
+            
+            # Definindo bloco Tomador de Serviços para SBC
+            tomador_bloco_match = re.search(r"Dados do Prestador de Serviços[\s\S]*?Dados do Tomador de Serviços\s*\n\s*(.+?)Discriminação dos Serviços", text, re.DOTALL)
+
         else:
+            # Número da Nota Fiscal Barueri
+            numero_nota_match = re.search(r"SERVICOS E FATURA\s*Número da Nota\s*(\d+)", text)
+            dados["Numero_Nota"] = numero_nota_match.group(1).strip() if numero_nota_match else None
+
             # Definindo bloco Prestador de Serviços para Barueri
             prestador_bloco_match = re.search(r"Prestador de Serviços\s+([A-Za-zÀ-ú\s.' ]+LTDA)(?:\s*\n|$)", text, re.DOTALL)
             
@@ -81,6 +91,8 @@ for subpath in os.listdir(path): #Para
                 nome_prestador_match = re.search(r"Municipio:([A-Za-zÀ-ú\s]+)\d", prestador_bloco)
             elif "Cotia" in subpath:
                 nome_prestador_match = re.search(r"Razão Social/Nome:\s*(.+)", prestador_bloco)
+            elif "SBC" in subpath:
+                nome_prestador_match = re.search(r"Compl:(.+)", prestador_bloco)
             else:
                 nome_prestador_match = re.search(r"([A-Za-zÀ-ú\s.'-]+)", prestador_bloco)
             dados["Nome_do_Prestador"] = nome_prestador_match.group(1).strip() if nome_prestador_match else None
@@ -94,15 +106,13 @@ for subpath in os.listdir(path): #Para
                 nome_tomador_match = re.search(r"CNPJ/CPF:.*?([A-Za-zÀ-ú\s]+?)(?:\.\s*Nome/Razão Social:|(?=\s*Nome/Razão Social:))", tomador_bloco)
             elif "Cotia" in subpath:
                 nome_tomador_match = re.search(r"UF: SPRazão Social/Nome:\s*(.+)", tomador_bloco)
+            elif "SBC" in subpath:
+                nome_tomador_match = re.search(r"Razão Social / Nome\s*(.+)", tomador_bloco)
             else:
                 nome_tomador_match = re.search(r"([A-Za-zÀ-ú\s.'-]+)", tomador_bloco)
             dados["Nome_do_Tomador"] = nome_tomador_match.group(1).strip() if nome_tomador_match else None
 
-        # Data de Emissão SP E FLORIPA
-        #data_emissao_match = re.search(r"Data e Hora de Emissão\s*([\d/: ]+)", text)
-        #dados["Data_Emissao"] = data_emissao_match.group(1).strip() if data_emissao_match else None
-
-        # Testar para todos
+        # Data emissão - Testar para todos
         data_emissao_match = re.search(r"(\d{2}/\d{2}/\d{4})", text)  # Ajuste aqui
         dados["Data_Emissao"] = data_emissao_match.group(1).strip() if data_emissao_match else None  # Ajuste aqui
 
@@ -151,10 +161,12 @@ for subpath in os.listdir(path): #Para
             valor_total_match = re.search(r"TOTAL DA NOTA =  R\$\s*([\d.,]+)", text)
         elif "Barueri" in subpath:
             valor_total_match = re.search(r"VALOR TOTAL DA NOTA\s*([R\$]?\s*[\d\.]+,\d{2})", text)
+        elif "SBC" in subpath:
+            valor_total_match = re.search(r"Valor\s+dos\s+Serviços\s+R\$\s*(\d+,\d{2})\s+Valor Total da Nota:", text)
         else:
-            valor_total_match = re.search(r"VALOR TOTAL DA NOTA = R\$\s*([\d.,]+)", text)  # Ajuste aqui
-        dados["Valor_Total"] = valor_total_match.group(1).strip() if valor_total_match else None  # Ajuste aqui
-
+            valor_total_match = re.search(r"VALOR TOTAL DA NOTA = R\$\s*([\d.,]+)", text)
+        dados["Valor_Total"] = valor_total_match.group(1).strip() if valor_total_match else None
+        
         #Lista de CNPJs
         cnpj_list = re.findall(r"([\d]{2}\.[\d]{3}\.[\d]{3}/[\d]{4}-[\d]{2})", text)
         if cnpj_list:
