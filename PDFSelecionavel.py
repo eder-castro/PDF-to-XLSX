@@ -14,13 +14,12 @@ for subpath in os.listdir(path): #Para
             reader = PyPDF2.PdfReader(pdf_file)
             text = ""
             for page in reader.pages:
-                text += page.extract_text() or ""
-                #print("***** TEXTO DO PDF *****\n", text)
+                text += page.extract_text() or "-"
+                print("***** TEXTO DO PDF *****\n", text)
         if not text:
             print(f"[AVISO] Não foi possível extrair texto do PDF: {nome_arquivo}")
             return None
-
-        print(pdf_path)
+        #print(pdf_path)
 
         dados = {}  # Dicionário para armazenar todos os dados extraídos
 
@@ -29,88 +28,26 @@ for subpath in os.listdir(path): #Para
             numero_nota_match = re.search(r",..\s*(\d+)Número da NFS-e", text)
             dados["Numero_NFSe"] = numero_nota_match.group(1).strip() if numero_nota_match else None
 
-            # Definindo bloco Prestador de Serviços para Floripa
-            #prestador_bloco_match = re.search(r"PRESTADOR DE SERVIÇOS(.+?)TOMADOR DE SERVIÇOS", text, re.DOTALL)
-
-            # Definindo bloco Tomador de Serviços para Floripa
-            #tomador_bloco_match = re.search(r"TOMADOR DE SERVIÇOS(.+?)VALOR TOTAL DA NOTA", text, re.DOTALL)
-
         elif "SP" in subpath:
             # Número da Nota Fiscal SP
             numero_nota_match = re.search(r"R\$\s*0,00(\d+)", text)
             dados["Numero_Nota"] = numero_nota_match.group(1).strip() if numero_nota_match else None
-
-            # Definindo bloco Prestador de Serviços para SP
-            #prestador_bloco_match = re.search(r"PRESTADOR DE SERVIÇOS(.+?)TOMADOR DE SERVIÇOS", text, re.DOTALL)
-        
-            # Definindo bloco Tomador de Serviços para SP
-            #tomador_bloco_match = re.search(r"TOMADOR DE SERVIÇOS(.+?)UF:", text, re.DOTALL)
 
         elif "Cotia" in subpath:
             # Número da Nota Fiscal COTIA
             numero_nota_match = re.search(r"Nota:\s*(\d+)", text)
             dados["Numero_Nota"] = numero_nota_match.group(1).strip() if numero_nota_match else None
 
-            # Definindo bloco Prestador de Serviços para COTIA
-            #prestador_bloco_match = re.search(r"PRESTADOR DE SERVIÇOS(.+?): BRASIL", text, re.DOTALL)
-            
-            # Definindo bloco Tomador de Serviços para COTIA
-            #tomador_bloco_match = re.search(r"SECRETARIA DA FAZENDA(.+?)ADMINISTRACAO DE CONDOMINIO", text, re.DOTALL)
         elif "SBC" in subpath:
             # Número da Nota Fiscal SBC
             numero_nota_match = re.search(r"Competência(\d+)", text)
             dados["Numero_Nota"] = numero_nota_match.group(1).strip() if numero_nota_match else None
 
-            # Definindo bloco Prestador de Serviços para SBC
-            #prestador_bloco_match = re.search(r"Dados do Prestador de Serviços\s+Razão Social / Nome\s*\n(.+?)Dados do Tomador de Serviços", text, re.DOTALL)
-            
-            # Definindo bloco Tomador de Serviços para SBC
-            #tomador_bloco_match = re.search(r"Dados do Prestador de Serviços[\s\S]*?Dados do Tomador de Serviços\s*\n\s*(.+?)Discriminação dos Serviços", text, re.DOTALL)
-
         else:
             # Número da Nota Fiscal Barueri
             numero_nota_match = re.search(r"SERVICOS E FATURA\s*Número da Nota\s*(\d+)", text)
             dados["Numero_Nota"] = numero_nota_match.group(1).strip() if numero_nota_match else None
-
-            # Definindo bloco Prestador de Serviços para Barueri
-            #prestador_bloco_match = re.search(r"Prestador de Serviços\s+([A-Za-zÀ-ú\s.' ]+LTDA)(?:\s*\n|$)", text, re.DOTALL)
-            
-            # Definindo bloco Tomador de Serviços para Barueri
-            #tomador_bloco_match = re.search(r"(?<=Valor Total)([A-Za-zÀ-ú\s.'-]+(?: LTDA)?)\s*(?=\d{2}\.\d{3}\.\d{3})", text, re.DOTALL)
-
-        #Fim do Se das Localidades
-
         #Funciona SP e Floripa
-
-        # # Prestador
-        # if prestador_bloco_match:
-        #     prestador_bloco = prestador_bloco_match.group(1)
-        #     if "Flori" in subpath:
-        #         nome_prestador_match = re.search(r"UF:(.+)", prestador_bloco)
-        #     elif "SP" in subpath:
-        #         nome_prestador_match = re.search(r"Municipio:([A-Za-zÀ-ú\s]+)\d", prestador_bloco)
-        #     elif "Cotia" in subpath:
-        #         nome_prestador_match = re.search(r"Razão Social/Nome:\s*(.+)", prestador_bloco)
-        #     elif "SBC" in subpath:
-        #         nome_prestador_match = re.search(r"Compl:(.+)", prestador_bloco)
-        #     else:
-        #         nome_prestador_match = re.search(r"([A-Za-zÀ-ú\s.'-]+)", prestador_bloco)
-        #     dados["Nome_do_Prestador"] = nome_prestador_match.group(1).strip() if nome_prestador_match else None
-
-        # # Tomador
-        # if tomador_bloco_match:
-        #     tomador_bloco = tomador_bloco_match.group(1)
-        #     if "Flori" in subpath:
-        #         nome_tomador_match = re.search(r"UF:(.+)", tomador_bloco)
-        #     elif "SP" in subpath:
-        #         nome_tomador_match = re.search(r"CNPJ/CPF:.*?([A-Za-zÀ-ú\s]+?)(?:\.\s*Nome/Razão Social:|(?=\s*Nome/Razão Social:))", tomador_bloco)
-        #     elif "Cotia" in subpath:
-        #         nome_tomador_match = re.search(r"UF: SPRazão Social/Nome:\s*(.+)", tomador_bloco)
-        #     elif "SBC" in subpath:
-        #         nome_tomador_match = re.search(r"Razão Social / Nome\s*(.+)", tomador_bloco)
-        #     else:
-        #         nome_tomador_match = re.search(r"([A-Za-zÀ-ú\s.'-]+)", tomador_bloco)
-        #     dados["Nome_do_Tomador"] = nome_tomador_match.group(1).strip() if nome_tomador_match else None
 
         # Data emissão - Testar para todos
         data_emissao_match = re.search(r"(\d{2}/\d{2}/\d{4})", text)  # Ajuste aqui

@@ -7,8 +7,12 @@ from pdf2image import convert_from_path # Importe a biblioteca pdf2image
 
 def preprocess_image(image_path):
     try:
-        img = Image.open(image_path).convert('L')  # Abre e converte para escala de cinza
-        img = img.filter(ImageFilter.SHARPEN)
+        img = Image.open(image_path).convert('L') # Abre e converte para escala de cinza
+        #img = img.filter(ImageFilter.SHARPEN)
+        #img = img.filter(ImageFilter.CONTOUR)
+        #img = img.filter(ImageFilter.EDGE_ENHANCE)
+        #img = img.filter(ImageFilter.EDGE_ENHANCE_MORE)
+        img = img.filter(ImageFilter.MaxFilter)
         # Adicione outros pré-processamentos conforme necessário (contraste, binarização, etc.)
         return img
     except Exception as e:
@@ -18,17 +22,16 @@ def preprocess_image(image_path):
 def extrair_dados_nf(caminho_imagem):
     """Extrai dados relevantes de uma imagem de NF."""
     try:
-        imagem_pil = Image.open(caminho_imagem)  # Abre a imagem
+        imagem_pil = Image.open(caminho_imagem) # Abre a imagem
 
         # Aplica o pré-processamento
         imagem_pre_processada = preprocess_image(caminho_imagem)
         if imagem_pre_processada:
-            texto = pytesseract.image_to_string(imagem_pre_processada, lang='por', config='--oem 3 --psm 6')
+            texto = pytesseract.image_to_string(imagem_pre_processada, lang='por', config='--psm 6 --oem 3')
         else:
             texto = pytesseract.image_to_string(imagem_pil, lang='por')
-                                                
-        print(f"Texto extraído de {caminho_imagem}")
-        #print(texto)
+
+        print(f"Texto extraído de {caminho_imagem}:\n{texto}")
         dados_nf = {}
 
         # Número da Nota
@@ -57,39 +60,53 @@ def extrair_dados_nf(caminho_imagem):
         dados_nf["Numero_Nota"] = numero_nota
 
         # Data de Emissão
-        data_emissao = None
-
-        data_emissao_match1 = re.search(r"(?:Data de Emissão:|Emissão:)\s*(\d{2}/\d{2}/\d{4})", texto)
-        if data_emissao_match1:
-            data_emissao = data_emissao_match1.group(1).strip()
-        elif data_emissao_match2 := re.search(r"Emitida em:\s*(\d{4}-\d{2}-\d{2})", texto):
-            data_emissao = data_emissao_match2.group(1).strip()
-        # Adicione mais 'elif's para outros formatos de data
+        data_emissao_match = re.search(r'(?:Data de Emissão:|Emissão:)\s*(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})', texto)
+        if data_emissao_match:
+            dados_nf['data_emissao'] = data_emissao_match.group(1).strip()
         else:
-            print("Nenhum padrão de data de emissão encontrado neste modelo.")
+            dados_nf['data_emissao'] = None
 
-        if data_emissao:
-            dados_nf['data_emissao'] = data_emissao
+        #Lista de CNPJs
+        cnpj_list = re.findall(r'CNPJ:\s*(\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})', texto)
+        if cnpj_list:
+            dados_nf["CNPJ_do_Prestador"] = cnpj_list[0]
+            if len(cnpj_list) > 1:
+                dados_nf["CNPJ_do_Tomador"] = cnpj_list[1]
+            else:
+                dados_nf["CNPJ_do_Tomador"] = None
+        else:
+            dados_nf["CNPJ_do_Prestador"] = None
+            dados_nf["CNPJ_do_Tomador"] = None
 
-        # CNPJ Prestador
-        cnpj_emitente_match = re.search(r'CNPJ:\s*(\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})', texto)
-        if cnpj_emitente_match:
-            dados_nf['cnpj_emitente'] = cnpj_emitente_match.group(1)
+
+
+        # # CNPJ Prestador
+        # cnpj_emitente_match = re.search(r'CNPJ:\s*(\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})', texto)
+         # if cnpj_emitente_match:
+        #     dados_nf['cnpj_emitente'] = cnpj_emitente_match.group(1)
+        # else:
+        #     dados_nf['cnpj_emitente'] = None
 
         # Nome do Prestador
         nome_prestador_match = re.search(r'(?:Nome/Razão Social:|Prestador:|Emitente:)\s*(.+)', texto)
         if nome_prestador_match:
             dados_nf['nome_prestador'] = nome_prestador_match.group(1).strip()
+        else:
+            dados_nf['nome_prestador'] = None
 
-        # CNPJ Tomador
-        cnpj_tomador_match = re.search(r'(?:CNPJ do Tomador:|CNPJ Destinatário:)\s*(\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})', texto)
-        if cnpj_tomador_match:
-            dados_nf['cnpj_tomador'] = cnpj_tomador_match.group(1).strip()
+        # # CNPJ Tomador
+        # cnpj_tomador_match = re.search(r'(?:CNPJ do Tomador:|CNPJ Destinatário:)\s*(\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})', texto)
+        # if cnpj_tomador_match:
+        #     dados_nf['cnpj_tomador'] = cnpj_tomador_match.group(1).strip()
+        # else:
+        #     dados_nf['cnpj_tomador'] = None
 
         # Nome do Tomador
         nome_tomador_match = re.search(r'(?:Nome/Razão Social:|Tomador:|Destinatário:)\s*(.+)', texto)
         if nome_tomador_match:
             dados_nf['nome_tomador'] = nome_tomador_match.group(1).strip()
+        else:
+            dados_nf['nome_tomador'] = None
 
 
         # Pedido e Contrato
@@ -108,14 +125,14 @@ def extrair_dados_nf(caminho_imagem):
                 for contrato in contratos:
                     for palavra in item_na_descricao.split():
                         if contrato in palavra:
-                            num_contrato = palavra[palavra.find(contrato):palavra.find(contrato)+10]
+                             num_contrato = palavra[palavra.find(contrato):palavra.find(contrato)+10]
             elif isinstance(item_na_descricao, list):
                 for item_da_lista in item_na_descricao:
                     if isinstance(item_da_lista, str):
                         for pedido in pedidos:
                             if pedido in item_da_lista:
-                                num_pedido = item_da_lista
-                                break
+                                    num_pedido = item_da_lista
+                                    break
                         if num_pedido:
                             break
                     elif isinstance(item_da_lista, dict):
@@ -128,7 +145,7 @@ def extrair_dados_nf(caminho_imagem):
                                 if num_pedido:
                                     break
                         if num_pedido:
-                            break
+                                    break
         dados_nf["Pedido"] = num_pedido
         dados_nf["Contrato"] = num_contrato
 
@@ -140,6 +157,8 @@ def extrair_dados_nf(caminho_imagem):
                 dados_nf['valor_total'] = float(valor_total_str)
             except ValueError:
                 dados_nf['valor_total'] = None
+        else:
+            dados_nf['valor_total'] = None
 
         # Adicione mais extrações para outros campos...
         print(dados_nf)
@@ -160,7 +179,7 @@ def criar_planilha_excel(dados_nfs, caminho_excel='dados_nfs.xlsx'):
 
     # Dados
     for nf in dados_nfs:
-        linha = [nf.get('numero_nota', ''),nf.get('data_emissao', ''),nf.get('cnpj_emitente', ''),nf.get('nome_prestador', ''),nf.get('cnpj_tomador', ''),nf.get('nome_tomador', ''),nf.get('Pedido',''),nf.get('Contrato'),nf.get('valor_total')]
+        linha = [nf.get('numero_nota', '-'),nf.get('data_emissao', '-'),nf.get('cnpj_emitente', '-'),nf.get('nome_prestador', '-'),nf.get('cnpj_tomador', '-'),nf.get('nome_tomador', '-'),nf.get('Pedido','-'),nf.get('Contrato','-'),nf.get('valor_total', '-')]
         sheet.append(linha)
 
     try:
@@ -173,7 +192,7 @@ if __name__ == "__main__":
     pasta_nfs = './SP Imagem'
     arquivos_pdf = [f for f in os.listdir(pasta_nfs) if f.lower().endswith('.pdf')]
     dados_extraidos = []
-    
+
     # Caminho para o executável do Poppler (ajuste se necessário)
     path_to_poppler_binaries = r'C:\Users\eder.castro\AppData\Local\Programs\poppler-24.08.0\Library\bin' # Substitua pelo seu caminho real
 
