@@ -53,7 +53,7 @@ def extrair_dados_nf(caminho_imagem):
                     for campo in campos_faltantes:
                         if dados_nf[campo] is None and dados_nf_pre_processado.get(campo):
                             dados_nf[campo] = dados_nf_pre_processado[campo]
-                            #print(f"Campo '{campo}' encontrado com sucesso após pré-processamento com '{filtro}'.")
+                            print(f"Campo '{campo}' encontrado com sucesso após pré-processamento com '{filtro}'.")
 
         # print(f"Texto extraído de {caminho_imagem} (original):\n{texto_original}")
         # print(f"Dados extraídos de {caminho_imagem}:\n{dados_nf}")
@@ -78,7 +78,7 @@ def extrair_campos(texto):
 
     # Número da Nota
     numero_nota = None
-    numero_nota_match = re.search(r"SÃO PAULO (\d+)", texto) # 4992069, 210, 211, 1634, 13788, 86746, 25269, AAKCID, São Paulo
+    numero_nota_match = re.search(r"SÃO PAULO (\d+)", texto)
     if numero_nota_match:
         numero_nota = numero_nota_match.group(1).strip()
     else:
@@ -86,44 +86,32 @@ def extrair_campos(texto):
         if numero_nota_match:
             numero_nota = numero_nota_match.group(1).strip()
         else:
-            numero_nota_match = re.search(r'(?:Número:|Nº:|s:\s?= |qi |Nota Fiscal:|osn-|ans|Ciao:| ne)\s*([^\s]+)', texto, re.DOTALL) # 158707, 303910, 303911, 158706, 10792, 10802, 40839
+            numero_nota_match = re.search(r'(?:Número:|Nº:|s:\s?= |os\s+qo |no;\s+É |qi |nos\s+O |one\s+|“ Co | ,\s+E A |Nota Fiscal:|osn-|O\s+a |O\s+asse |O\s+ses |ana|Ciao:| ne)\s*([^\s]+)', texto, re.DOTALL)
             if numero_nota_match:
                 numero_nota = numero_nota_match.group(1).strip()
             else:
                 numero_nota = None
     dados_nf["Numero_Nota"] = numero_nota
 
-        # numero_nota_match = re.search(r"Número da Nota\s*(\d+)", texto) # Cotia
-        # if numero_nota_match:
-        #     numero_nota = numero_nota_match.group(1).strip()
-        # else:
-    # numero_nota_match = re.search(r"R\$\s*0,00(\d+)", texto) # SP
-    # if numero_nota_match:
-    #     numero_nota = numero_nota_match.group(1).strip()
-    #         else:
-    # numero_nota_match = re.search(r",..\s*(\d+)Número da NFS-e", texto) # Floripa
-    # if numero_nota_match:
-    #     numero_nota = numero_nota_match.group(1).strip()
-    #             else:
-    
-
     # Data de Emissão
     data_emissao_match = re.search(r"(\d{2}/\d{2}/\d{4})", texto)
     dados_nf["Data_Emissao"] = data_emissao_match.group(1).strip() if data_emissao_match else None
 
-    # CNPJ Prestador
-    cnpj_prestador_match = re.search(r'PRESTADOR DE SERVIÇOS.*?\b(\d{2}\s*\.?\s*\d{3}\s*\.?\s*\d{3}[/\s-]?\s*\d{4}-?\s*\d{2})\b', texto, re.DOTALL)
-    if cnpj_prestador_match:
-        dados_nf["CNPJ_Prestador"] = "".join(filter(str.isdigit, cnpj_prestador_match.group(1)))
-
-    # CNPJ Tomador
-    cnpj_tomador_match = re.search(r'TOMADOR DE SERVIÇOS.*?\b(\d{2}\s*\.?\s*\d{3}\s*\.?\s*\d{3}[/\s-]?\s*\d{4}-?\s*\d{2})\b', texto, re.DOTALL)
-    if cnpj_tomador_match:
-        dados_nf["CNPJ_Tomador"] = "".join(filter(str.isdigit, cnpj_tomador_match.group(1)))
+    #Lista de CNPJs
+    cnpj_list = re.findall(r"([\d]{2}\.[\d]{3}\.[\d]{3}/[\d]{4}\s?-\s?[\d]{2})", texto)
+    #print(cnpj_list)
+    if cnpj_list:
+        dados_nf["CNPJ_Prestador"] = cnpj_list[0].replace(" ","")
+        if len(cnpj_list) > 1:
+            if cnpj_list[1] != cnpj_list[0]:
+                dados_nf["CNPJ_Tomador"] = cnpj_list[1].replace(" ","")
+            else:
+                dados_nf["CNPJ_Tomador"] = cnpj_list[2].replace(" ","")
+        else:
+            dados_nf["CNPJ_Tomador"] = None
     else:
-        cnpj_tomador_match_alt = re.search(r'TOMADOR DE SERVIÇOS.*?\b(\d{14})\b', texto.replace(" ", ""), re.DOTALL)
-        if cnpj_tomador_match_alt:
-            dados_nf["CNPJ_Tomador"] = cnpj_tomador_match_alt.group(1)
+        dados_nf["CNPJ_Prestador"] = None
+        dados_nf["CNPJ_Tomador"] = None
 
     # Pedido e Contrato
     descricao = [texto]
@@ -131,66 +119,104 @@ def extrair_campos(texto):
     contratos = ["47000", "48000"]
     num_pedido = None
     num_contrato = None
+
+    def buscar_numero(item, termos):
+        if isinstance(item, str):
+            for termo in termos:
+                for palavra in item.split():
+                    if termo in palavra:
+                        potential = palavra[palavra.find(termo):palavra.find(termo) + 10]
+                        if len(potential) == 10 and potential.isdigit():
+                            return potential
+        elif isinstance(item, list):
+            for sub_item in item:
+                if isinstance(sub_item, str):
+                    for termo in termos:
+                        if termo in sub_item:
+                            potential = sub_item.strip()
+                            if len(potential) == 10 and potential.isdigit():
+                                return potential
+        elif isinstance(item, dict):
+            for valor in item.values():
+                if isinstance(valor, str):
+                    for termo in termos:
+                        if termo in valor:
+                            potential = valor.strip()
+                            if len(potential) == 10 and potential.isdigit():
+                                return potential
+        return None
+
+    num_pedido = None
+    num_contrato = None
+
     for item_na_descricao in descricao:
-        if isinstance(item_na_descricao, str):
-            for pedido in pedidos:
-                for palavra in item_na_descricao.split():
-                    if pedido in palavra:
-                        potential_pedido = palavra[palavra.find(pedido):palavra.find(pedido)+10]
-                        if len(potential_pedido) == 10 and potential_pedido.isdigit(): # Verifica o comprimento e se é numérico
-                            num_pedido = potential_pedido
-                            break # Se encontrou um pedido válido, pode sair do loop de palavras
-                if num_pedido: # Se encontrou um pedido válido, pode sair do loop de pedidos
-                    break
-            for contrato in contratos:
-                for palavra in item_na_descricao.split():
-                    if contrato in palavra:
-                        potential_contrato = palavra[palavra.find(contrato):palavra.find(contrato)+10]
-                        if len(potential_contrato) == 10 and potential_contrato.isdigit(): # Verifica o comprimento e se é numérico
-                            num_contrato = potential_contrato
-                            break # Se encontrou um contrato válido, pode sair do loop de palavras
-                if num_contrato: # Se encontrou um contrato válido, pode sair do loop de contratos
-                    break
-        elif isinstance(item_na_descricao, list):
-            for item_da_lista in item_na_descricao:
-                if isinstance(item_da_lista, str):
-                    for pedido in pedidos:
-                        if pedido in item_da_lista:
-                            potential_pedido = item_da_lista.strip()
-                            if len(potential_pedido) == 10 and potential_pedido.isdigit():
-                                num_pedido = potential_pedido
-                                break
-                    if num_pedido:
-                        break
-                    for contrato in contratos:
-                        if contrato in item_da_lista:
-                            potential_contrato = item_da_lista.strip()
-                            if len(potential_contrato) == 10 and potential_contrato.isdigit():
-                                num_contrato = potential_contrato
-                                break
-                    if num_contrato:
-                        break
-                elif isinstance(item_da_lista, dict):
-                    for vlr in item_da_lista.values():
-                        if isinstance(vlr, str):
-                            for pedido in pedidos:
-                                if pedido in vlr:
-                                    potential_pedido = vlr.strip()
-                                    if len(potential_pedido) == 10 and potential_pedido.isdigit():
-                                        num_pedido = potential_pedido
-                                        break
-                            if num_pedido:
-                                break
-                            for contrato in contratos:
-                                if contrato in vlr:
-                                    potential_contrato = vlr.strip()
-                                    if len(potential_contrato) == 10 and potential_contrato.isdigit():
-                                        num_contrato = potential_contrato
-                                        break
-                            if num_contrato:
-                                break
-                if num_pedido and num_contrato: # Se ambos foram encontrados, pode sair
-                    break
+        if not num_pedido:
+            num_pedido = buscar_numero(item_na_descricao, pedidos)
+        if not num_contrato:
+            num_contrato = buscar_numero(item_na_descricao, contratos)
+
+    # Agora, após o loop, num_pedido e num_contrato conterão os valores encontrados (se houver)
+
+    # for item_na_descricao in descricao:
+    #     if isinstance(item_na_descricao, str):
+    #         for pedido in pedidos:
+    #             for palavra in item_na_descricao.split():
+    #                 if pedido in palavra:
+    #                     potential_pedido = palavra[palavra.find(pedido):palavra.find(pedido)+10]
+    #                     if len(potential_pedido) == 10 and potential_pedido.isdigit(): # Verifica o comprimento e se é numérico
+    #                         num_pedido = potential_pedido
+    #                         break # Se encontrou um pedido válido, pode sair do loop de palavras
+    #             if num_pedido: # Se encontrou um pedido válido, pode sair do loop de pedidos
+    #                 break
+    #         for contrato in contratos:
+    #             for palavra in item_na_descricao.split():
+    #                 if contrato in palavra:
+    #                     potential_contrato = palavra[palavra.find(contrato):palavra.find(contrato)+10]
+    #                     if len(potential_contrato) == 10 and potential_contrato.isdigit(): # Verifica o comprimento e se é numérico
+    #                         num_contrato = potential_contrato
+    #                         break # Se encontrou um contrato válido, pode sair do loop de palavras
+    #             if num_contrato: # Se encontrou um contrato válido, pode sair do loop de contratos
+    #                 break
+    #     elif isinstance(item_na_descricao, list):
+    #         for item_da_lista in item_na_descricao:
+    #             if isinstance(item_da_lista, str):
+    #                 for pedido in pedidos:
+    #                     if pedido in item_da_lista:
+    #                         potential_pedido = item_da_lista.strip()
+    #                         if len(potential_pedido) == 10 and potential_pedido.isdigit():
+    #                             num_pedido = potential_pedido
+    #                             break
+    #                 if num_pedido:
+    #                     break
+    #                 for contrato in contratos:
+    #                     if contrato in item_da_lista:
+    #                         potential_contrato = item_da_lista.strip()
+    #                         if len(potential_contrato) == 10 and potential_contrato.isdigit():
+    #                             num_contrato = potential_contrato
+    #                             break
+    #                 if num_contrato:
+    #                     break
+    #             elif isinstance(item_da_lista, dict):
+    #                 for vlr in item_da_lista.values():
+    #                     if isinstance(vlr, str):
+    #                         for pedido in pedidos:
+    #                             if pedido in vlr:
+    #                                 potential_pedido = vlr.strip()
+    #                                 if len(potential_pedido) == 10 and potential_pedido.isdigit():
+    #                                     num_pedido = potential_pedido
+    #                                     break
+    #                         if num_pedido:
+    #                             break
+    #                         for contrato in contratos:
+    #                             if contrato in vlr:
+    #                                 potential_contrato = vlr.strip()
+    #                                 if len(potential_contrato) == 10 and potential_contrato.isdigit():
+    #                                     num_contrato = potential_contrato
+    #                                     break
+    #                         if num_contrato:
+    #                             break
+    #             if num_pedido and num_contrato: # Se ambos foram encontrados, pode sair
+    #                break
     if num_pedido == None:
         dados_nf["Pedido"] = ''
     else:    
@@ -215,6 +241,14 @@ def extrair_campos(texto):
                 valor_total = float(valor_total_match.group(1).strip().replace('.', '').replace(',', '.'))
             except ValueError:
                 pass
+        else:
+            valor_total_match = re.search(r'TOTAL DO SERVIÇO = .*?R\$[ ]*([\d\.]+,\d{2}|\d+,\d{2})', texto)
+            if valor_total_match:
+                try:
+                    valor_total = float(valor_total_match.group(1).strip().replace('.', '').replace(',', '.'))
+                except ValueError:
+                    pass
+
     dados_nf['valor_total'] = valor_total
 
     return dados_nf
