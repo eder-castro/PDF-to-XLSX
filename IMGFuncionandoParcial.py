@@ -45,39 +45,39 @@ def extrair_campos(texto):
     """Extrai campos usando REGEX a partir do texto fornecido."""
     dados_nf = {}
 
-    # Número da Nota
-    numero_nota = None
-    numero_nota_match = re.search(r"Número da Nota\s+(\d+)", texto) # Padrão para "Número da Nota  00007060"
-    if numero_nota_match:
-        numero_nota = numero_nota_match.group(1).strip()
-    else:
-        numero_nota_match = re.search(r"Competência(\d+)", texto) # SBC
-        if numero_nota_match:
-            numero_nota = numero_nota_match.group(1).strip()
-        else:
-            numero_nota_match = re.search(r"Nota:\s*(\d+)", texto) # Cotia
-            if numero_nota_match:
-                numero_nota = numero_nota_match.group(1).strip()
-            else:
-                numero_nota_match = re.search(r"R\$\s*0,00(\d+)", texto) # SP
-                if numero_nota_match:
-                    numero_nota = numero_nota_match.group(1).strip()
-                else:
-                    numero_nfse_match = re.search(r",..\s*(\d+)Número da NFS-e", texto) # Floripa
-                    if numero_nfse_match:
-                        numero_nota = numero_nfse_match.group(1).strip()
-                    # Não precisa de 'else: numero_nota = None' aqui, pois já foi inicializado
+    # # Número da Nota
+    # numero_nota = None
+    # numero_nota_match = re.search(r"Número da Nota\s+(\d+)", texto) # Padrão para "Número da Nota  00007060"
+    # if numero_nota_match:
+    #     numero_nota = numero_nota_match.group(1).strip()
+    # else:
+    #     numero_nota_match = re.search(r"Competência(\d+)", texto) # SBC
+    #     if numero_nota_match:
+    #         numero_nota = numero_nota_match.group(1).strip()
+    #     else:
+    #         numero_nota_match = re.search(r"Nota:\s*(\d+)", texto) # Cotia
+    #         if numero_nota_match:
+    #             numero_nota = numero_nota_match.group(1).strip()
+    #         else:
+    #             numero_nota_match = re.search(r"R\$\s*0,00(\d+)", texto) # SP
+    #             if numero_nota_match:
+    #                 numero_nota = numero_nota_match.group(1).strip()
+    #             else:
+    #                 numero_nfse_match = re.search(r",..\s*(\d+)Número da NFS-e", texto) # Floripa
+    #                 if numero_nfse_match:
+    #                     numero_nota = numero_nfse_match.group(1).strip()
+    #                 # Não precisa de 'else: numero_nota = None' aqui, pois já foi inicializado
 
-    dados_nf["Numero_Nota"] = numero_nota
+    # dados_nf["Numero_Nota"] = numero_nota
 
-    # Data de Emissão
-    data_emissao_match = re.search(r'(?:Data de Emissão:|Emissão:)\s*(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})', texto)
-    if data_emissao_match:
-        dados_nf['data_emissao'] = data_emissao_match.group(1).strip()
+    # # Data de Emissão
+    # data_emissao_match = re.search(r'(?:Data de Emissão:|Emissão:)\s*(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})', texto)
+    # if data_emissao_match:
+    #     dados_nf['data_emissao'] = data_emissao_match.group(1).strip()
 
     # Lista de CNPJs
     cnpj_prestador = None
-    cnpj_prestador_match = re.search(r'PRESTADOR DE SERVIÇOS.*?\b(\d{2}\s*\.?\s*\d{3}\s*\.?\s*\d{3}[/\s-]?\s*\d{4}-?\s*\d{2})\b', texto, re.DOTALL)
+    cnpj_prestador_match = re.search(r' CPF/CNPJ .*?\b(\d{2}\s*\.?\s*\d{3}\s*\.?\s*\d{3}[/\s-]?\s*\d{4}-?\s*\d{2})\b', texto, re.DOTALL)
     if cnpj_prestador_match:
         cnpj_prestador = "".join(filter(str.isdigit, cnpj_prestador_match.group(1)))
     dados_nf["CNPJ_Prestador"] = cnpj_prestador
@@ -92,53 +92,53 @@ def extrair_campos(texto):
             cnpj_tomador = cnpj_tomador_match_alt.group(1)
     dados_nf["CNPJ_Tomador"] = cnpj_tomador
 
-    # Pedido e Contrato (mantive como estava)
-    descricao = [texto]
-    pedidos = ["42000", "43000", "45000"]
-    contratos = ["47000", "48000"]
-    num_pedido = None
-    num_contrato = None
-    for item_na_descricao in descricao:
-        if isinstance(item_na_descricao, str):
-            for pedido in pedidos:
-                for palavra in item_na_descricao.split():
-                    if pedido in palavra:
-                        num_pedido = palavra[palavra.find(pedido):palavra.find(pedido)+10]
-            for contrato in contratos:
-                for palavra in item_na_descricao.split():
-                    if contrato in palavra:
-                        num_contrato = palavra[palavra.find(contrato):palavra.find(contrato)+10]
-        # elif isinstance(item_na_descricao, list):
-        #     # ... (restante da lógica para listas e dicionários) ...
-        #     pass # Adicione a lógica completa se necessário
-        # elif isinstance(item_na_descricao, dict):
-        #     # ... (restante da lógica para dicionários) ...
-        #     pass # Adicione a lógica completa se necessário
-    dados_nf["Pedido"] = num_pedido
-    dados_nf["Contrato"] = num_contrato
+    # # Pedido e Contrato (mantive como estava)
+    # descricao = [texto]
+    # pedidos = ["42000", "43000", "45000"]
+    # contratos = ["47000", "48000"]
+    # num_pedido = None
+    # num_contrato = None
+    # for item_na_descricao in descricao:
+    #     if isinstance(item_na_descricao, str):
+    #         for pedido in pedidos:
+    #             for palavra in item_na_descricao.split():
+    #                 if pedido in palavra:
+    #                     num_pedido = palavra[palavra.find(pedido):palavra.find(pedido)+10]
+    #         for contrato in contratos:
+    #             for palavra in item_na_descricao.split():
+    #                 if contrato in palavra:
+    #                     num_contrato = palavra[palavra.find(contrato):palavra.find(contrato)+10]
+    #     # elif isinstance(item_na_descricao, list):
+    #     #     # ... (restante da lógica para listas e dicionários) ...
+    #     #     pass # Adicione a lógica completa se necessário
+    #     # elif isinstance(item_na_descricao, dict):
+    #     #     # ... (restante da lógica para dicionários) ...
+    #     #     pass # Adicione a lógica completa se necessário
+    # dados_nf["Pedido"] = num_pedido
+    # dados_nf["Contrato"] = num_contrato
 
-    # Valor da NF
-    valor_total = None
+    # # Valor da NF
+    # valor_total = None
 
-    # Tenta pegar o VALOR TOTAL RECEBIDO primeiro
-    valor_recebido_match = re.search(r'[Vv]ALOR TOTAL RECEBIDO.*?R\$[ ]*([\d\.]+,\d{2}|\d+,\d{2})', texto)
-    if valor_recebido_match:
-        valor_total_str = valor_recebido_match.group(1).strip().replace('.', '').replace(',', '.')
-        try:
-            valor_total = float(valor_total_str)
-        except ValueError:
-            pass  # Mantém valor_total como None em caso de erro de conversão
-    else:
-        # Se VALOR TOTAL RECEBIDO não for encontrado, tenta pegar o valor após VALOR TOTAL até R$
-        valor_total_match = re.search(r'[Vv]ALOR TOTAL.*?R\$[ ]*([\d\.]+,\d{2}|\d+,\d{2})', texto)
-        if valor_total_match:
-            valor_total_str = valor_total_match.group(1).strip().replace('.', '').replace(',', '.')
-            try:
-                valor_total = float(valor_total_str)
-            except ValueError:
-                pass  # Mantém valor_total como None em caso de erro de conversão
+    # # Tenta pegar o VALOR TOTAL RECEBIDO primeiro
+    # valor_recebido_match = re.search(r'[Vv]ALOR TOTAL RECEBIDO.*?R\$[ ]*([\d\.]+,\d{2}|\d+,\d{2})', texto)
+    # if valor_recebido_match:
+    #     valor_total_str = valor_recebido_match.group(1).strip().replace('.', '').replace(',', '.')
+    #     try:
+    #         valor_total = float(valor_total_str)
+    #     except ValueError:
+    #         pass  # Mantém valor_total como None em caso de erro de conversão
+    # else:
+    #     # Se VALOR TOTAL RECEBIDO não for encontrado, tenta pegar o valor após VALOR TOTAL até R$
+    #     valor_total_match = re.search(r'[Vv]ALOR TOTAL.*?R\$[ ]*([\d\.]+,\d{2}|\d+,\d{2})', texto)
+    #     if valor_total_match:
+    #         valor_total_str = valor_total_match.group(1).strip().replace('.', '').replace(',', '.')
+    #         try:
+    #             valor_total = float(valor_total_str)
+    #         except ValueError:
+    #             pass  # Mantém valor_total como None em caso de erro de conversão
 
-    dados_nf['valor_total'] = valor_total
+    # dados_nf['valor_total'] = valor_total
     
     print(dados_nf)
     return dados_nf

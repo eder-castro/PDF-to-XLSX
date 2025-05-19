@@ -25,16 +25,11 @@ def preprocess_image(image_path, filter_type):
         print(f"Erro ao pré-processar a imagem com {filter_type}: {e}")
         return None
 
-def extrair_campo(imagem_pil, regex):
-    """Extrai um campo específico usando regex de uma imagem PIL."""
-    texto = pytesseract.image_to_string(imagem_pil, lang='por', config='--psm 6 --oem 3')
-    match = re.search(regex, texto)
-    return match.group(1).strip() if match else None
-
 def extrair_dados_nf(caminho_imagem):
     """Extrai dados relevantes de uma imagem de NF com tentativas de pré-processamento para todos os campos faltantes."""
     try:
         imagem_pil_original = Image.open(caminho_imagem)
+
         texto_original = pytesseract.image_to_string(imagem_pil_original, lang='por', config='--psm 6 --oem 3')
         dados_nf = extrair_campos(texto_original)
         #print("*****************    ORIGINAL    *****************\n",texto_original)
@@ -53,7 +48,6 @@ def extrair_dados_nf(caminho_imagem):
                     for campo in campos_faltantes:
                         if dados_nf[campo] is None and dados_nf_pre_processado.get(campo):
                             dados_nf[campo] = dados_nf_pre_processado[campo]
-                            print(f"Campo '{campo}' encontrado com sucesso após pré-processamento com '{filtro}'.")
 
         # print(f"Texto extraído de {caminho_imagem} (original):\n{texto_original}")
         # print(f"Dados extraídos de {caminho_imagem}:\n{dados_nf}")
@@ -73,20 +67,20 @@ def extrair_campos(texto):
         "CNPJ_Tomador": None,
         "Pedido": None,
         "Contrato": None,
-        "valor_total": None
+        "Valor_Total": None
     }
 
     # Número da Nota
     numero_nota = None
-    numero_nota_match = re.search(r"SÃO PAULO (\d+)", texto)
+    numero_nota_match = re.search(r'(?:s:\s?= |os\s+qo |no;\s+É |qi |nos\s+O |one\s+|“ Co |O\s+a |O\s+asse |O\s+ses |ana|Ciao:)\s*([^\s]+)', texto, re.DOTALL)
     if numero_nota_match:
         numero_nota = numero_nota_match.group(1).strip()
     else:
-        numero_nota_match = re.search(r"SÃO PAULO \[\s*(\d+)\s*", texto)
+        numero_nota_match = re.search(r"SÃO PAULO (\d+)", texto) # 1634, 4123599, 25269
         if numero_nota_match:
             numero_nota = numero_nota_match.group(1).strip()
         else:
-            numero_nota_match = re.search(r'(?:Número:|Nº:|s:\s?= |os\s+qo |no;\s+É |qi |nos\s+O |one\s+|“ Co | ,\s+E A |Nota Fiscal:|osn-|O\s+a |O\s+asse |O\s+ses |ana|Ciao:| ne)\s*([^\s]+)', texto, re.DOTALL)
+            numero_nota_match = re.search(r"SÃO PAULO \[\s*(\d+)\s*", texto) #Apenas a NF 7507
             if numero_nota_match:
                 numero_nota = numero_nota_match.group(1).strip()
             else:
@@ -119,7 +113,6 @@ def extrair_campos(texto):
     contratos = ["47000", "48000"]
     num_pedido = None
     num_contrato = None
-
     def buscar_numero(item, termos):
         if isinstance(item, str):
             for termo in termos:
@@ -145,78 +138,13 @@ def extrair_campos(texto):
                             if len(potential) == 10 and potential.isdigit():
                                 return potential
         return None
-
     num_pedido = None
     num_contrato = None
-
     for item_na_descricao in descricao:
         if not num_pedido:
             num_pedido = buscar_numero(item_na_descricao, pedidos)
         if not num_contrato:
             num_contrato = buscar_numero(item_na_descricao, contratos)
-
-    # Agora, após o loop, num_pedido e num_contrato conterão os valores encontrados (se houver)
-
-    # for item_na_descricao in descricao:
-    #     if isinstance(item_na_descricao, str):
-    #         for pedido in pedidos:
-    #             for palavra in item_na_descricao.split():
-    #                 if pedido in palavra:
-    #                     potential_pedido = palavra[palavra.find(pedido):palavra.find(pedido)+10]
-    #                     if len(potential_pedido) == 10 and potential_pedido.isdigit(): # Verifica o comprimento e se é numérico
-    #                         num_pedido = potential_pedido
-    #                         break # Se encontrou um pedido válido, pode sair do loop de palavras
-    #             if num_pedido: # Se encontrou um pedido válido, pode sair do loop de pedidos
-    #                 break
-    #         for contrato in contratos:
-    #             for palavra in item_na_descricao.split():
-    #                 if contrato in palavra:
-    #                     potential_contrato = palavra[palavra.find(contrato):palavra.find(contrato)+10]
-    #                     if len(potential_contrato) == 10 and potential_contrato.isdigit(): # Verifica o comprimento e se é numérico
-    #                         num_contrato = potential_contrato
-    #                         break # Se encontrou um contrato válido, pode sair do loop de palavras
-    #             if num_contrato: # Se encontrou um contrato válido, pode sair do loop de contratos
-    #                 break
-    #     elif isinstance(item_na_descricao, list):
-    #         for item_da_lista in item_na_descricao:
-    #             if isinstance(item_da_lista, str):
-    #                 for pedido in pedidos:
-    #                     if pedido in item_da_lista:
-    #                         potential_pedido = item_da_lista.strip()
-    #                         if len(potential_pedido) == 10 and potential_pedido.isdigit():
-    #                             num_pedido = potential_pedido
-    #                             break
-    #                 if num_pedido:
-    #                     break
-    #                 for contrato in contratos:
-    #                     if contrato in item_da_lista:
-    #                         potential_contrato = item_da_lista.strip()
-    #                         if len(potential_contrato) == 10 and potential_contrato.isdigit():
-    #                             num_contrato = potential_contrato
-    #                             break
-    #                 if num_contrato:
-    #                     break
-    #             elif isinstance(item_da_lista, dict):
-    #                 for vlr in item_da_lista.values():
-    #                     if isinstance(vlr, str):
-    #                         for pedido in pedidos:
-    #                             if pedido in vlr:
-    #                                 potential_pedido = vlr.strip()
-    #                                 if len(potential_pedido) == 10 and potential_pedido.isdigit():
-    #                                     num_pedido = potential_pedido
-    #                                     break
-    #                         if num_pedido:
-    #                             break
-    #                         for contrato in contratos:
-    #                             if contrato in vlr:
-    #                                 potential_contrato = vlr.strip()
-    #                                 if len(potential_contrato) == 10 and potential_contrato.isdigit():
-    #                                     num_contrato = potential_contrato
-    #                                     break
-    #                         if num_contrato:
-    #                             break
-    #             if num_pedido and num_contrato: # Se ambos foram encontrados, pode sair
-    #                break
     if num_pedido == None:
         dados_nf["Pedido"] = ''
     else:    
@@ -226,30 +154,39 @@ def extrair_campos(texto):
     else:
         dados_nf["Contrato"] = num_contrato
 
-    # Valor da NF
+    # Valores
     valor_total = None
-    valor_recebido_match = re.search(r'[Vv]ALOR TOTAL RECEBIDO.*?R\$[ ]*([\d\.]+,\d{2}|\d+,\d{2})', texto)
-    if valor_recebido_match:
-        try:
-            valor_total = float(valor_recebido_match.group(1).strip().replace('.', '').replace(',', '.'))
-        except ValueError:
-            pass
+    valor_total_match = re.search(r"TOTAL DA NOTA =  R\$\s*([\d.,]+)", texto, re.DOTALL)
+    if valor_total_match:
+        valor_total = valor_total_match.group(1).strip()
     else:
-        valor_total_match = re.search(r'[Vv]ALOR TOTAL.*?R\$[ ]*([\d\.]+,\d{2}|\d+,\d{2})', texto)
+        valor_total_match = re.search(r"VALOR TOTAL DA NOTA\s*([R\$]?\s*[\d\.]+,\d{2})", texto, re.DOTALL)
         if valor_total_match:
-            try:
-                valor_total = float(valor_total_match.group(1).strip().replace('.', '').replace(',', '.'))
-            except ValueError:
-                pass
+            valor_total = valor_total_match.group(1).strip()
         else:
-            valor_total_match = re.search(r'TOTAL DO SERVIÇO = .*?R\$[ ]*([\d\.]+,\d{2}|\d+,\d{2})', texto)
+            valor_total_match = re.search(r"Valor\s+dos\s+Serviços\s+R\$\s*(\d+,\d{2})\s+Valor Total da Nota:", texto, re.DOTALL)
             if valor_total_match:
-                try:
-                    valor_total = float(valor_total_match.group(1).strip().replace('.', '').replace(',', '.'))
-                except ValueError:
-                    pass
+                valor_total = valor_total_match.group(1).strip()
+            else:
+                valor_total_match = re.search(r"VALOR TOTAL DA NOTA = R\$\s*([\d.,]+)", texto, re.DOTALL)
+                if valor_total_match:
+                    valor_total = valor_total_match.group(1).strip()
+                else:
+                    valor_total_match = re.search(r'[Vv]ALOR TOTAL RECEBIDO.*?R\$[ ]*([\d\.]+,\d{2}|\d+,\d{2})', texto)
+                    if valor_total_match:
+                        valor_total = valor_total_match.group(1).strip()
+                    else:
+                        valor_total_match = re.search(r'[Vv]ALOR TOTAL.*?R\$[ ]*([\d\.]+,\d{2}|\d+,\d{2})', texto)
+                        if valor_total_match:
+                            valor_total = valor_total_match.group(1).strip()
+                        else:
+                            valor_total_match = re.search(r'TOTAL DO SERVIÇO = .*?R\$[ ]*([\d\.]+,\d{2}|\d+,\d{2})', texto)
+                            if valor_total_match:
+                                valor_total = valor_total_match.group(1).strip()
+    dados_nf["Valor_Total"] = valor_total_match.group(1).strip() if valor_total_match else None  
 
-    dados_nf['valor_total'] = valor_total
+    # Nome do Arquivo
+    dados_nf["Nome_Arquivo"] = arquivo_pdf
 
     return dados_nf
 
@@ -260,14 +197,13 @@ def criar_planilha_excel(dados_nfs, caminho_excel='dados_nfs.xlsx'):
     sheet.title = 'Dados das NFs'
 
     # Cabeçalho
-    cabecalho = ['Número NF','Data de Emissão','CNPJ Fornecedor','CNPJ Empresa','Contrato','Pedido','Valor NF']
+    cabecalho = ['Número NF','Data de Emissão','CNPJ Fornecedor','CNPJ Empresa','Contrato','Pedido','Valor NF', 'Nome do Arquivo']
     sheet.append(cabecalho)
 
     # Dados
     for nf in dados_nfs:
-        linha = [nf.get('Numero_Nota', '-'),nf.get('Data_Emissao', '-'),nf.get('CNPJ_Prestador', '-'),nf.get('CNPJ_Tomador', '-'),nf.get('Contrato','-'),nf.get('Pedido','-'),nf.get('valor_total', '-')]
+        linha = [nf.get('Numero_Nota', '-'),nf.get('Data_Emissao', '-'),nf.get('CNPJ_Prestador', '-'),nf.get('CNPJ_Tomador', '-'),nf.get('Contrato','-'),nf.get('Pedido','-'),nf.get('Valor_Total', '-'), nf.get('Nome_Arquivo', '-')]
         sheet.append(linha)
-
     try:
         workbook.save(caminho_excel)
         print(f"Planilha '{caminho_excel}' criada com sucesso!")
