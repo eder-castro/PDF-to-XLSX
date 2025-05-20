@@ -32,7 +32,7 @@ def extrair_dados_nf(caminho_imagem):
 
         texto_original = pytesseract.image_to_string(imagem_pil_original, lang='por', config='--psm 6 --oem 3')
         dados_nf = extrair_campos(texto_original)
-        #print("*****************    ORIGINAL    *****************\n",texto_original)
+        print("*****************    ORIGINAL    *****************\n",texto_original)
         campos_faltantes = [key for key, value in dados_nf.items() if value is None]
 
         if campos_faltantes:
@@ -41,10 +41,10 @@ def extrair_dados_nf(caminho_imagem):
             for filtro in filtros:
                 imagem_pre_processada = preprocess_image(caminho_imagem, filtro)
                 if imagem_pre_processada:
-                    #print(f"Tentando extrair campos faltantes com filtro: {filtro}")
+                    print(f"Tentando extrair campos faltantes com filtro: {filtro}")
                     texto_pre_processado = pytesseract.image_to_string(imagem_pre_processada, lang='por', config='--psm 6 --oem 3')
                     dados_nf_pre_processado = extrair_campos(texto_pre_processado)
-                    #print("***************** PRE PROCESSADO *****************\n",texto_pre_processado)
+                    print("***************** PRE PROCESSADO *****************\n",texto_pre_processado)
                     for campo in campos_faltantes:
                         if dados_nf[campo] is None and dados_nf_pre_processado.get(campo):
                             dados_nf[campo] = dados_nf_pre_processado[campo]
@@ -72,19 +72,27 @@ def extrair_campos(texto):
 
     # Número da Nota
     numero_nota = None
-    numero_nota_match = re.search(r'(?:s:\s?= |os\s+qo |no;\s+É |qi |nos\s+O |one\s+|“ Co |O\s+a |O\s+asse |O\s+ses |ana|Ciao:)\s*([^\s]+)', texto, re.DOTALL)
+    numero_nota_match = re.search(r'(?:s:\s?= |Barueri |os\s+qo |no;\s+É |qi |nos\s+O |one\s+|“ Co |O\s+a |O\s+asse |O\s+ses |ana|Ciao:)\s*([^\s]+)', texto, re.DOTALL)
     if numero_nota_match:
         numero_nota = numero_nota_match.group(1).strip()
     else:
-        numero_nota_match = re.search(r"SÃO PAULO (\d+)", texto) # 1634, 4123599, 25269
+        numero_nota_match = re.search(r'SÃO PAULO (\d+)', texto, re.DOTALL)
         if numero_nota_match:
             numero_nota = numero_nota_match.group(1).strip()
         else:
-            numero_nota_match = re.search(r"SÃO PAULO \[\s*(\d+)\s*", texto) #Apenas a NF 7507
+            numero_nota_match = re.search(r"SÃO PAULO \[\s*(\d+)\s*", texto)
             if numero_nota_match:
                 numero_nota = numero_nota_match.group(1).strip()
             else:
-                numero_nota = None
+                numero_nota_match = re.search(r'JANEIRO (\d+)', texto, re.DOTALL)
+                if numero_nota_match:
+                    numero_nota = numero_nota_match.group(1).strip()
+                else:
+                    numero_nota_match = re.search(r'SANTA\s*—\s*(\d+)', texto, re.DOTALL)
+                    if numero_nota_match:
+                        numero_nota = numero_nota_match.group(1).strip()
+                    else:
+                        numero_nota = None
     dados_nf["Numero_Nota"] = numero_nota
 
     # Data de Emissão
@@ -164,7 +172,7 @@ def extrair_campos(texto):
         if valor_total_match:
             valor_total = valor_total_match.group(1).strip()
         else:
-            valor_total_match = re.search(r"Valor\s+dos\s+Serviços\s+R\$\s*(\d+,\d{2})\s+Valor Total da Nota:", texto, re.DOTALL)
+            valor_total_match = re.search(r"Valor\s+dos\s+Serviços\s+R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2})\s+Valor Total da Nota:", texto, re.DOTALL)
             if valor_total_match:
                 valor_total = valor_total_match.group(1).strip()
             else:
@@ -183,7 +191,15 @@ def extrair_campos(texto):
                             valor_total_match = re.search(r'TOTAL DO SERVIÇO = .*?R\$[ ]*([\d\.]+,\d{2}|\d+,\d{2})', texto)
                             if valor_total_match:
                                 valor_total = valor_total_match.group(1).strip()
-    dados_nf["Valor_Total"] = valor_total_match.group(1).strip() if valor_total_match else None  
+                            else:
+                                valor_total_match = re.search(r'VALOR DA NOTA = .*?R\$[ ]*([\d\.]+,\d{2}|\d+,\d{2})', texto)
+                                if valor_total_match:
+                                    valor_total = valor_total_match.group(1).strip()
+                                else:
+                                    valor_total_match = re.search(r'VALOR DOS SERVIÇOS: R\$\s*([\d\.,]+)', texto, re.DOTALL)
+                                    if valor_total_match:
+                                        valor_total = valor_total_match.group(1).strip()
+    dados_nf["Valor_Total"] = valor_total if valor_total_match else None
 
     # Nome do Arquivo
     dados_nf["Nome_Arquivo"] = arquivo_pdf

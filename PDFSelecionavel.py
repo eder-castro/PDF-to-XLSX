@@ -45,6 +45,14 @@ for subpath in os.listdir(path):
                         numero_nota_match = re.search(r"SERVICOS E FATURA\s*Número da Nota\s*(\d+)", texto, re.DOTALL) # Barueri
                         if numero_nota_match:
                             numero_nota = numero_nota_match.group(1).strip()
+                        else:
+                            numero_nota_match = re.search(r"Competência(\s*\d+)", texto, re.DOTALL) # Campinas
+                            if numero_nota_match:
+                                numero_nota = numero_nota_match.group(1).strip()
+                            else:
+                                numero_nota_match = re.search(r"eNúmero da Nota\s+(\d+)", texto, re.DOTALL) # Campo Grande
+                                if numero_nota_match:
+                                    numero_nota = numero_nota_match.group(1).strip()
         dados_nf["Numero_Nota"] = numero_nota
 
         # Data emissão - Testar para todos
@@ -120,7 +128,7 @@ for subpath in os.listdir(path):
             if valor_total_match:
                 valor_total = valor_total_match.group(1).strip()
             else:
-                valor_total_match = re.search(r"Valor\s+dos\s+Serviços\s+R\$\s*(\d+,\d{2})\s+Valor Total da Nota:", texto, re.DOTALL)
+                valor_total_match = re.search(r"Valor\s+dos\s+Serviços\s+R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2})\s+Valor Total da Nota:", texto, re.DOTALL)
                 if valor_total_match:
                     valor_total = valor_total_match.group(1).strip()
                 else:
@@ -139,6 +147,10 @@ for subpath in os.listdir(path):
                                 valor_total_match = re.search(r'TOTAL DO SERVIÇO = .*?R\$[ ]*([\d\.]+,\d{2}|\d+,\d{2})', texto)
                                 if valor_total_match:
                                     valor_total = valor_total_match.group(1).strip()
+                                else:
+                                    valor_total_match = re.search(r'(\d{1,3}(?:\.\d{3})*,\d{2})\s+\d{1,3}(?:\.\d{3})*,\d{2}\s+\d{1,3}(?:\.\d{3})*,\d{2}\s+\d{1,3}(?:\.\d{3})*,\d{2}VALOR TOTAL', texto)
+                                    if valor_total_match:
+                                        valor_total = valor_total_match.group(1).strip()
         dados_nf["Valor_Total"] = valor_total_match.group(1).strip() if valor_total_match else None        
 
         # Nome do Arquivo
