@@ -32,7 +32,7 @@ def extrair_dados_nf(caminho_imagem):
 
         texto_original = pytesseract.image_to_string(imagem_pil_original, lang='por', config='--psm 6 --oem 3')
         dados_nf = extrair_campos(texto_original)
-        print("*****************    ORIGINAL    *****************\n",texto_original)
+        #print("*****************    ORIGINAL    *****************\n",texto_original)
         campos_faltantes = [key for key, value in dados_nf.items() if value is None]
 
         if campos_faltantes:
@@ -41,10 +41,10 @@ def extrair_dados_nf(caminho_imagem):
             for filtro in filtros:
                 imagem_pre_processada = preprocess_image(caminho_imagem, filtro)
                 if imagem_pre_processada:
-                    print(f"Tentando extrair campos faltantes com filtro: {filtro}")
+                    #print(f"Tentando extrair campos faltantes com filtro: {filtro}")
                     texto_pre_processado = pytesseract.image_to_string(imagem_pre_processada, lang='por', config='--psm 6 --oem 3')
                     dados_nf_pre_processado = extrair_campos(texto_pre_processado)
-                    print("***************** PRE PROCESSADO *****************\n",texto_pre_processado)
+                    #print("***************** PRE PROCESSADO *****************\n",texto_pre_processado)
                     for campo in campos_faltantes:
                         if dados_nf[campo] is None and dados_nf_pre_processado.get(campo):
                             dados_nf[campo] = dados_nf_pre_processado[campo]
@@ -92,28 +92,137 @@ def extrair_campos(texto):
                     if numero_nota_match:
                         numero_nota = numero_nota_match.group(1).strip()
                     else:
-                        numero_nota = None
+                        numero_nota_match = re.search(r'NOTA\s*R PADRE ANCHIETA, 1150 (\d+)', texto, re.DOTALL)
+                        if numero_nota_match:
+                            numero_nota = numero_nota_match.group(1).strip()
+                        else:
+                            numero_nota = None
     dados_nf["Numero_Nota"] = numero_nota
 
     # Data de Emissão
     data_emissao_match = re.search(r"(\d{2}/\d{2}/\d{4})", texto)
     dados_nf["Data_Emissao"] = data_emissao_match.group(1).strip() if data_emissao_match else None
 
-    #Lista de CNPJs
-    cnpj_list = re.findall(r"([\d]{2}\.[\d]{3}\.[\d]{3}/[\d]{4}\s?-\s?[\d]{2})", texto)
-    #print(cnpj_list)
-    if cnpj_list:
-        dados_nf["CNPJ_Prestador"] = cnpj_list[0].replace(" ","")
-        if len(cnpj_list) > 1:
-            if cnpj_list[1] != cnpj_list[0]:
-                dados_nf["CNPJ_Tomador"] = cnpj_list[1].replace(" ","")
-            else:
-                dados_nf["CNPJ_Tomador"] = cnpj_list[2].replace(" ","")
+    # #Lista de CNPJs
+    # cnpj_list = re.findall(r"([\d]{2}\.[\d]{3}\.[\d]{3}/[\d]{4}\s?-\s?[\d]{2})", texto)
+    # #print(cnpj_list)
+    # if cnpj_list:
+    #     dados_nf["CNPJ_Prestador"] = cnpj_list[0].replace(" ","")
+    #     if len(cnpj_list) > 1:
+    #         if cnpj_list[1] != cnpj_list[0]:
+    #             dados_nf["CNPJ_Tomador"] = cnpj_list[1].replace(" ","")
+    #         else:
+    #             dados_nf["CNPJ_Tomador"] = cnpj_list[2].replace(" ","")
+    #     else:
+    #         dados_nf["CNPJ_Tomador"] = None
+    # else:
+    #     dados_nf["CNPJ_Prestador"] = None
+    #     dados_nf["CNPJ_Tomador"] = None
+
+
+    # #Lista de CNPJs
+    # cnpj_list = re.findall(r"([\d]{2}\.[\d]{3}\.[\d]{3}/[\d]{4}-[\d]{2})", texto)
+    # if cnpj_list:
+    #     dados_nf["CNPJ_Prestador"] = cnpj_list[0]
+    #     if len(cnpj_list) > 1:
+    #         dados_nf["CNPJ_Tomador"] = cnpj_list[1]
+    #     else:
+    #         dados_nf["CNPJ_Tomador"] = None
+    # else:
+    #     dados_nf["CNPJ_Prestador"] = None
+    #     dados_nf["CNPJ_Tomador"] = None
+
+    def limpar_ocr_erros_comuns(texto_original):
+        #"""Substitui caracteres frequentemente confundidos pelo OCR."""
+        texto_limpo = texto_original.replace('O', '0') # Letra O por número zero
+        # Adicione mais substituições conforme for identificando erros comuns do OCR
+        # texto = texto.replace('l', '1') # Letra l por número um
+        # texto = texto.replace('B', '8') # Letra B por número oito
+        return texto_limpo
+
+    # Seu texto de exemplo (incluindo variações)
+    # texto_original = """
+    # CNPJ Prestador: 12.345.678/0001-90
+    # CNPJ Tomador: 98.765.432 / 0001 - 21
+    # CNPJ Sem Formato: 11223344556677
+    # CNPJ Com O: 12.345.678/0O01-9O
+    # Outro numero 123456789012345
+    # CNPJ Teste: 22334455667788
+    # """
+
+    # 1. Limpeza inicial do texto de OCR
+    texto_processado = limpar_ocr_erros_comuns(texto)
+
+    # 2. Definição da REGEX combinada
+    # Sua REGEX atualizada para CNPJ formatado já lida com espaços opcionais:
+    # r"([\d]{2}\.[\d]{3}\.[\d]{3}/[\d]{4}\s?-\s?[\d]{2})"
+    # Agora, vamos adicionar a opção para 14 dígitos sem formatação
+
+    # REGEX para CNPJ formatado (já permite espaços ao redor de '-' com '\s?')
+    # Podemos estender para permitir espaços também ao redor de '.' e '/' se necessário,
+    # mas seu padrão atual já é bom para '-'
+    #cnpj_formatado_pattern = r"(\d{2}\.?\s?\d{3}\.?\s?\d{3}/?\s?\d{4}\s?-\s?\d{2})"
+    # Permiti:
+    # \.?\s? para pontos e barras opcionais com espaços opcionais.
+    # O '?' torna o ponto e a barra opcionais também, o que pode não ser o ideal se eles são obrigatórios.
+    # Se eles forem obrigatórios, a sua REGEX original para formatados é melhor.
+    # Vamos manter a sua original e adicionar a sem formatação.
+
+    # Opção 1: Uma única REGEX poderosa
+    # (Formato com pontos/barras/hífens E espaços opcionais OU 14 dígitos sem formatação)
+    #cnpj_full_pattern = r"(\d{2}\.?\s?\d{3}\.?\s?\d{3}/?\s?\d{4}\s?-\s?\d{2}|\b\d{14}\b)"
+
+    # OU, a melhor forma: Duas REGEXes e combinar resultados, com limpeza posterior
+    # Isso é mais robusto porque a validação final será mais controlada.
+
+    # Lista para armazenar os CNPJs válidos que encontrarmos
+    cnpjs_encontrados = []
+
+    # Primeira busca: CNPJs formatados (com ou sem espaços extras)
+    # Ajustei ligeiramente sua REGEX para permitir espaços em todos os separadores, se necessário.
+    # Se os pontos e barras são *sempre* obrigatórios e apenas hífens podem ter espaços, use sua original.
+    # Se todos os separadores podem ter espaços, a seguinte é boa:
+    cnpj_formatado_re = r"(\d{2}\s?\.\s?\d{3}\s?\.\s?\d{3}\s?/\s?\d{4}\s?-\s?\d{2})"
+    matches_formatados = re.findall(cnpj_formatado_re, texto_processado)
+    for cnpj_str in matches_formatados:
+        # Limpa espaços e formatação para padronizar
+        cnpj_limpo = re.sub(r'[./\s-]', '', cnpj_str) # Remove todos os separadores e espaços
+        if len(cnpj_limpo) == 14 and cnpj_limpo.isdigit(): # Garante que são 14 dígitos
+            cnpjs_encontrados.append(cnpj_limpo)
+
+    # Segunda busca: CNPJs sem formatação (14 dígitos consecutivos)
+    cnpj_nao_formatado_re = r"(\d{14})\b" # \b para garantir que não são parte de um número maior
+    matches_nao_formatados = re.findall(cnpj_nao_formatado_re, texto_processado)
+    for cnpj_str in matches_nao_formatados:
+        if len(cnpj_str) == 14 and cnpj_str.isdigit(): # Validação extra
+            cnpjs_encontrados.append(cnpj_str)
+
+
+    # Remover duplicatas e manter a ordem de aparição (se desejar uma ordem consistente)
+    # Uma maneira simples de remover duplicatas mantendo a ordem:
+    cnpjs_unicos = []
+    for cnpj in cnpjs_encontrados:
+        if cnpj not in cnpjs_unicos:
+            cnpjs_unicos.append(cnpj)
+
+    # Agora, atribua aos dados_nf
+    if cnpjs_unicos:
+        dados_nf["CNPJ_Prestador"] = cnpjs_unicos[0]
+        if len(cnpjs_unicos) > 1:
+            # Sua lógica de `if cnpj_list[1] != cnpj_list[0]` é importante se o Prestador e Tomador
+            # puderem ter o mesmo CNPJ mas você espera que o segundo seja diferente quando há 3 CNPJs.
+            # Simplifiquei um pouco aqui, mas você pode readaptar.
+            dados_nf["CNPJ_Tomador"] = cnpjs_unicos[1]
         else:
-            dados_nf["CNPJ_Tomador"] = None
+            dados_nf["CNPJ_Tomador"] = None # Não encontrou um segundo CNPJ
     else:
         dados_nf["CNPJ_Prestador"] = None
         dados_nf["CNPJ_Tomador"] = None
+
+    #print(f"Texto original:\n{texto_original}")
+    # print(f"Texto processado (após limpeza OCR):\n{texto_processado}")
+    # print(f"CNPJs encontrados e validados: {cnpjs_unicos}")
+    # print(f"Dados extraídos: {dados_nf}")
 
     # Pedido e Contrato
     descricao = [texto]
