@@ -5,39 +5,53 @@ import openpyxl
 import os
 from pdf2image import convert_from_path
 import PyPDF2
+import Extracao
 
 # Caminho para o executável do Poppler (ajuste se necessário)
 path_to_poppler_binaries = r'C:\Users\eder.castro\AppData\Local\Programs\poppler-24.08.0\Library\bin' # Substitua pelo seu caminho real
 
 pasta_PDFs = './PDFs'
+qt_arquivos_selec = 0
+qt_arquivos_img = 0
+nao_processados = 0
 qt_arquivos = 0
 dados_extraidos = []
 
 def extrair_dados_PDFSelecionavel(nome_arquivo): # Extrai dados do PDF e coloca na variável "texto"
     #print("Entrou em extrair_dados_PDFSelecionavel")
+    global qt_arquivos_selec
+    global nao_processados
     with open(f"{pasta_e_subpasta_nfs}/{arquivo}", "rb") as arquivo_pdf:
         reader = PyPDF2.PdfReader(arquivo_pdf)
         texto = ""
         for page in reader.pages:
             texto += page.extract_text() or "-"
             #print("***** TEXTO DO PDF *****\n", texto)
-            extrair_campos(texto)
+            dds_extr = extrair_campos(texto)
+            campos_faltantes = [key for key, value in dds_extr.items() if value is None]
+            if len(campos_faltantes) == 0:
+                print (dds_extr)
+                qt_arquivos_selec += 1
+            else:
+                nao_processados += 1
+            return dds_extr
     if not texto:
         print(f"[AVISO] Não foi possível extrair texto do PDF: {nome_arquivo}") # Se não tem texto, retorna esta mensagem
-    return texto
         
 def extrair_dados_PDFImagem(caminho_imagem):
-    print("Entrou em extrair_dados_PDFImagem")
+    #print("Entrou em extrair_dados_PDFImagem")
+    global qt_arquivos_img
     """Extrai dados relevantes de uma imagem de NF com tentativas de pré-processamento para todos os campos faltantes."""
     try:
+        qt_arquivos_img +=1
         imagem_pil_original = Image.open(caminho_imagem)
         texto_original = pytesseract.image_to_string(imagem_pil_original, lang='por', config='--psm 6 --oem 3')
-        dados_nf = extrair_campos(texto_original)
+        dds_extr = extrair_campos(texto_original)
         #print("*****************    ORIGINAL    *****************\n",texto_original)
-        campos_faltantes = [key for key, value in dados_nf.items() if value is None]
+        campos_faltantes = [key for key, value in dds_extr.items() if value is None]
         if campos_faltantes:
             filtros = ['max', 'median', 'unsharp_mask', 'sharpen', 'minfilter'] # Adicione mais filtros se desejar
-            print(f"Texto extraído de {caminho_imagem}")
+            #print(f"Texto extraído de {caminho_imagem}")
             for filtro in filtros:
                 imagem_pre_processada = preprocess_image(caminho_imagem, filtro)
                 if imagem_pre_processada:
@@ -46,16 +60,15 @@ def extrair_dados_PDFImagem(caminho_imagem):
                     dados_nf_pre_processado = extrair_campos(texto_pre_processado)
                     #print("***************** PRE PROCESSADO *****************\n",texto_pre_processado)
                     for campo in campos_faltantes:
-                        if dados_nf[campo] is None and dados_nf_pre_processado.get(campo):
-                            dados_nf[campo] = dados_nf_pre_processado[campo]
-        print(f"Texto extraído de {caminho_imagem} (original):\n{texto_original}")
-        print(f"Dados extraídos de {caminho_imagem}:\n{dados_nf}")
-        print(dados_nf)
-        return dados_nf
+                        if dds_extr[campo] is None and dados_nf_pre_processado.get(campo):
+                            dds_extr[campo] = dados_nf_pre_processado[campo]
+        #print(f"Texto extraído de {caminho_imagem} (original):\n{texto_original}")
+        #print(f"Dados extraídos de {caminho_imagem}:\n{dados_nf}")
+        print(dds_extr)
+        return dds_extr
     except Exception as e:
         print(f"Erro ao processar {caminho_imagem}: {e}")
         return {}
-    #print(pasta_nfs)
 
 def extrair_campos(texto):
     #print("Entrou em extrair_campos")
@@ -68,24 +81,22 @@ def extrair_campos(texto):
     "Contrato": None,
     "Valor_Total": None
     }
-    numero_NF = extrai_numero_nota_pdf_selecionavel(texto)
-    if numero_NF != None:
-        dados_nf["Numero_Nota"] = numero_NF
+    if nao_processados == 0:
+        dados_nf["Numero_Nota"] = Extracao.extrai_numero_nota_pdf_selecionavel(texto)
     else:
-        dados_nf["Numero_Nota"] = extrai_numero_nota_pdf_imagem(texto)
-    dados_nf["Data_Emissao"] = extrai_data_emissao(texto)
-    lista_CNPJs = extrai_Cnpjs(texto)
+        dados_nf["Numero_Nota"] = Extracao.extrai_numero_nota_pdf_imagem(texto)
+    dados_nf["Data_Emissao"] = Extracao.extrai_data_emissao(texto)
+    lista_CNPJs = Extracao.extrai_Cnpjs(texto)
     dados_nf["CNPJ_Prestador"] = lista_CNPJs[0]
     dados_nf["CNPJ_Tomador"] = lista_CNPJs[1]
-    lista_pedido_contrato = extrai_pedido_e_contrato(texto)
+    lista_pedido_contrato = Extracao.extrai_pedido_e_contrato(texto)
     dados_nf["Pedido"] = lista_pedido_contrato[0]
     dados_nf["Contrato"] = lista_pedido_contrato[1]
-    dados_nf["Valor_Total"] = extrai_valores(texto)
-    print(dados_nf)
+    dados_nf["Valor_Total"] = Extracao.extrai_valores(texto)
     return dados_nf
 
 def preprocess_image(image_path, filter_type):
-    print("Entrou em preprocess imagem")
+    #print("Entrou em preprocess imagem")
     """Pré-processa a imagem com um filtro específico."""
     try:
         img = Image.open(image_path).convert('L')
@@ -105,259 +116,19 @@ def preprocess_image(image_path, filter_type):
         print(f"Erro ao pré-processar a imagem com {filter_type}: {e}")
         return None
 
-def extrai_numero_nota_pdf_imagem(texto):
-    print("Entrou em numero nota")
-    # Número da Nota 
-    numero_nota = None
-    numero_nota_match = re.search(r'(?:s:\s?= |Barueri |os\s+qo |no;\s+É |qi |nos\s+O |one\s+|“ Co |O\s+a |O\s+asse |O\s+ses |ana|Ciao:)\s*([^\s]+)', texto, re.DOTALL)
-    if numero_nota_match:
-        numero_nota = numero_nota_match.group(1).strip()
-    else:
-        numero_nota_match = re.search(r'SÃO PAULO (\d+)', texto, re.DOTALL)
-        if numero_nota_match:
-            numero_nota = numero_nota_match.group(1).strip()
-        else:
-            numero_nota_match = re.search(r"SÃO PAULO \[\s*(\d+)\s*", texto)
-            if numero_nota_match:
-                numero_nota = numero_nota_match.group(1).strip()
-            else:
-                numero_nota_match = re.search(r'JANEIRO (\d+)', texto, re.DOTALL)
-                if numero_nota_match:
-                    numero_nota = numero_nota_match.group(1).strip()
-                else:
-                    numero_nota_match = re.search(r'SANTA\s*—\s*(\d+)', texto, re.DOTALL)
-                    if numero_nota_match:
-                        numero_nota = numero_nota_match.group(1).strip()
-                    else:
-                        numero_nota_match = re.search(r'NOTA\s*R PADRE ANCHIETA, 1150 (\d+)', texto, re.DOTALL)
-                        if numero_nota_match:
-                            numero_nota = numero_nota_match.group(1).strip()
-                        else:
-                            numero_nota = None
-    return numero_nota
-    #dados_nf["Numero_Nota"] = numero_nota
-
-def extrai_numero_nota_pdf_selecionavel(texto):
-    #print("Entrou em numero nota selecionavel")
-    # Número da Nota
-    numero_nota = None
-    numero_nota_match = re.search(r"\s*(\d{3})NFS-e", texto, re.DOTALL) #Jundiai
-    if numero_nota_match:
-        numero_nota = numero_nota_match.group(1).strip()
-        #print("============================ 0",numero_nota)
-    else:
-        numero_nota_match = re.search(r",..\s*(\d+)Número da NFS-e", texto, re.DOTALL) #Flori
-        if numero_nota_match:
-            numero_nota = numero_nota_match.group(1).strip()
-            #print("============================ 1",numero_nota)
-        else:
-            numero_nota_match = re.search(r"R\$\s*0,00(\d+)", texto, re.DOTALL) # SP
-            if numero_nota_match:
-                numero_nota = numero_nota_match.group(1).strip()
-                #print("============================ 2",numero_nota)
-            else:
-                numero_nota_match = re.search(r"Nota:\s*(\d+)", texto, re.DOTALL) # Cotia
-                if numero_nota_match:
-                    numero_nota = numero_nota_match.group(1).strip()
-                    #print("============================ 3",numero_nota)
-                else:
-                    numero_nota_match = re.search(r"Competência(\d+)", texto, re.DOTALL) # SBC
-                    if numero_nota_match:
-                        numero_nota = numero_nota_match.group(1).strip()
-                        #print("============================ 4",numero_nota)
-                    else:
-                        numero_nota_match = re.search(r"SERVICOS E FATURA\s*Número da Nota\s*(\d+)", texto, re.DOTALL) # Barueri
-                        if numero_nota_match:
-                            numero_nota = numero_nota_match.group(1).strip()
-                            #print("============================ 5",numero_nota)
-                        else:
-                            numero_nota_match = re.search(r"Competência(\s*\d+)", texto, re.DOTALL) # Campinas
-                            if numero_nota_match:
-                                numero_nota = numero_nota_match.group(1).strip()
-                                #print("============================ 6",numero_nota)
-                            else:
-                                numero_nota_match = re.search(r"Número da Nota\s*(\d+)", texto, re.DOTALL) # Campo Grande
-                                if numero_nota_match:
-                                    numero_nota = numero_nota_match.group(1).strip()
-                                    #print("============================ 7",numero_nota)
-                                else:
-                                    numero_nota_match = re.search(r"FAZENDA\s*(\d+)", texto, re.DOTALL) # Campo Grande
-                                    if numero_nota_match:
-                                        numero_nota = numero_nota_match.group(1).strip()
-                                        #print("============================ 8",numero_nota)
-                                    else:
-                                        numero_nota_match = re.search(r"FAZENDA\s*(\d+)", texto, re.DOTALL) # Campo Grande
-                                        if numero_nota_match:
-                                            numero_nota = numero_nota_match.group(1).strip()
-                                            #print("============================ 9",numero_nota)
-    return numero_nota
-    #dados_nf["Numero_Nota"] = numero_nota
-
-def extrai_data_emissao(texto):
-    #print("Entrou em emissao")
-    # Data de Emissão
-    data_emissao_match = re.search(r"(\d{2}/\d{2}/\d{4})", texto)
-    #dados_nf["Data_Emissao"] = data_emissao_match.group(1).strip() if data_emissao_match else None
-    data_emissao = data_emissao_match.group(1).strip() if data_emissao_match else None
-    return data_emissao
-
-def extrai_Cnpjs(texto):
-    #print("Entrou em CNPJs")
-    def limpar_ocr_erros_comuns(texto_original):
-        texto_limpo = texto_original.replace('O', '0') # Letra O por número zero
-        return texto_limpo
-    texto_processado = limpar_ocr_erros_comuns(texto)
-    cnpjs_encontrados = []
-    cnpj_formatado_re = r"(\d{2}\s?\.\s?\d{3}\s?\.\s?\d{3}\s?/\s?\d{4}\s?-\s?\d{2})"
-    matches_formatados = re.findall(cnpj_formatado_re, texto_processado)
-    for cnpj_str in matches_formatados:
-        cnpj_limpo = re.sub(r'[./\s-]', '', cnpj_str) # Remove todos os separadores e espaços
-        if len(cnpj_limpo) == 14 and cnpj_limpo.isdigit(): # Garante que são 14 dígitos
-            cnpjs_encontrados.append(cnpj_limpo)
-    cnpj_nao_formatado_re = r"(\d{14})\b"
-    matches_nao_formatados = re.findall(cnpj_nao_formatado_re, texto_processado)
-    for cnpj_str in matches_nao_formatados:
-        if len(cnpj_str) == 14 and cnpj_str.isdigit(): # Validação extra
-            cnpjs_encontrados.append(cnpj_str)
-    cnpjs_unicos = []
-    for cnpj in cnpjs_encontrados:
-        if cnpj not in cnpjs_unicos:
-            cnpjs_unicos.append(cnpj)
-    if cnpjs_unicos:
-        cnpj_prestador = cnpjs_unicos[0]
-        #dados_nf["CNPJ_Prestador"] = cnpjs_unicos[0]
-        if len(cnpjs_unicos) > 1:
-            cnpj_tomador = cnpjs_unicos[1]
-            #dados_nf["CNPJ_Tomador"] = cnpjs_unicos[1]
-        else:
-            cnpj_tomador = None
-            #dados_nf["CNPJ_Tomador"] = None # Não encontrou um segundo CNPJ
-    else:
-        cnpj_prestador = None
-        cnpj_tomador = None
-        #dados_nf["CNPJ_Prestador"] = None
-        #dados_nf["CNPJ_Tomador"] = None
-    return cnpj_prestador, cnpj_tomador
-
-def extrai_pedido_e_contrato(texto):
-    #print("Entrou em Pedido e contrato")
-    # Pedido e Contrato
-    descricao = [texto]
-    pedidos = ["42000", "43000", "45000"]
-    contratos = ["47000", "48000"]
-    num_pedido = None
-    num_contrato = None
-    def buscar_numero(item, termos):
-        if isinstance(item, str):
-            for termo in termos:
-                for palavra in item.split():
-                    if termo in palavra:
-                        potential = palavra[palavra.find(termo):palavra.find(termo) + 10]
-                        if len(potential) == 10 and potential.isdigit():
-                            return potential
-        elif isinstance(item, list):
-            for sub_item in item:
-                if isinstance(sub_item, str):
-                    for termo in termos:
-                        if termo in sub_item:
-                            potential = sub_item.strip()
-                            if len(potential) == 10 and potential.isdigit():
-                                return potential
-        elif isinstance(item, dict):
-            for valor in item.values():
-                if isinstance(valor, str):
-                    for termo in termos:
-                        if termo in valor:
-                            potential = valor.strip()
-                            if len(potential) == 10 and potential.isdigit():
-                                return potential
-        return None
-    
-    #num_pedido = None
-    #num_contrato = None
-    for item_na_descricao in descricao:
-        if not num_pedido:
-            num_pedido = buscar_numero(item_na_descricao, pedidos)
-        if not num_contrato:
-            num_contrato = buscar_numero(item_na_descricao, contratos)
-    if num_pedido == None:
-        pedido = ''
-        #dados_nf["Pedido"] = ''
-    else:    
-        pedido = num_pedido
-        #dados_nf["Pedido"] = num_pedido
-    if num_contrato == None:
-        contrato =  ''
-        #dados_nf["Contrato"] = ''
-    else:
-        contrato = num_contrato
-        #dados_nf["Contrato"] = num_contrato
-    return pedido, contrato
-
-def extrai_valores(texto):
-    #print("Entrou em valores")
-    # Valores
-    valor_total = None
-    valor_total_match = re.search(r"TOTAL DA NOTA =  R\$\s*([\d.,]+)", texto, re.DOTALL)
-    if valor_total_match:
-        valor_total = valor_total_match.group(1).strip()
-    else:
-        valor_total_match = re.search(r"VALOR TOTAL DA NOTA\s*([R\$]?\s*[\d\.]+,\d{2})", texto, re.DOTALL)
-        if valor_total_match:
-            valor_total = valor_total_match.group(1).strip()
-        else:
-            valor_total_match = re.search(r"Valor\s+dos\s+Serviços\s+R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2})\s+Valor Total da Nota:", texto, re.DOTALL)
-            if valor_total_match:
-                valor_total = valor_total_match.group(1).strip()
-            else:
-                valor_total_match = re.search(r"VALOR TOTAL DA NOTA = R\$\s*([\d.,]+)", texto, re.DOTALL)
-                if valor_total_match:
-                    valor_total = valor_total_match.group(1).strip()
-                else:
-                    valor_total_match = re.search(r'[Vv]ALOR TOTAL RECEBIDO.*?R\$[ ]*([\d\.]+,\d{2}|\d+,\d{2})', texto)
-                    if valor_total_match:
-                        valor_total = valor_total_match.group(1).strip()
-                    else:
-                        valor_total_match = re.search(r'[Vv]ALOR TOTAL.*?R\$[ ]*([\d\.]+,\d{2}|\d+,\d{2})', texto)
-                        if valor_total_match:
-                            valor_total = valor_total_match.group(1).strip()
-                        else:
-                            valor_total_match = re.search(r'TOTAL DO SERVIÇO = .*?R\$[ ]*([\d\.]+,\d{2}|\d+,\d{2})', texto)
-                            if valor_total_match:
-                                valor_total = valor_total_match.group(1).strip()
-                            else:
-                                valor_total_match = re.search(r'VALOR DA NOTA = .*?R\$[ ]*([\d\.]+,\d{2}|\d+,\d{2})', texto)
-                                if valor_total_match:
-                                    valor_total = valor_total_match.group(1).strip()
-                                else:
-                                    valor_total_match = re.search(r'VALOR DOS SERVIÇOS: R\$\s*([\d\.,]+)', texto, re.DOTALL)
-                                    if valor_total_match:
-                                        valor_total = valor_total_match.group(1).strip()
-                                    else:
-                                        valor_total_match = re.search(r'(\d{1,3}(?:\.\d{3})*,\d{2})\s+\d{1,3}(?:\.\d{3})*,\d{2}\s+\d{1,3}(?:\.\d{3})*,\d{2}\s+\d{1,3}(?:\.\d{3})*,\d{2}VALOR TOTAL', texto)
-                                        if valor_total_match:
-                                            valor_total = valor_total_match.group(1).strip()
-                                        else:
-                                            valor_total_match = re.search(r'((?<=\n)\d{1,3}(?:\.\d{3})*,\d{2})', texto, re.DOTALL)
-                                            if valor_total_match:
-                                                valor_total = valor_total_match.group(1).strip()
-    #dados_nf["Valor_Total"] = valor_total if valor_total_match else None
-    valor_nf = valor_total if valor_total_match else None
-    return valor_total
-
 if __name__ == "__main__":
     for subpasta in os.listdir(pasta_PDFs):
         pasta_e_subpasta_nfs = os.path.join(pasta_PDFs, subpasta)
         lista_arquivos = os.listdir(pasta_e_subpasta_nfs)
         # Para cada arquivo na lista de arquivos
         for arquivo in lista_arquivos:
-            qt_arquivos += 1
+            caminho_completo_pdf = os.path.join(pasta_e_subpasta_nfs, arquivo)
             if arquivo.lower().endswith(".pdf"):
+                #print(caminho_completo_pdf)
+                qt_arquivos += 1
                 dados = extrair_dados_PDFSelecionavel(arquivo)
-                if dados:
-                    dados_extraidos.append(dados)
-                else:
-                    caminho_completo_pdf = os.path.join(pasta_e_subpasta_nfs, arquivo)
+                if nao_processados != 0:
+                    #print("Sem dados")
                     try: # tente converter o pdf em imagem usando o poppler e extrair as informações
                         # Converta o PDF para uma lista de objetos PIL Image
                         imagens = convert_from_path(caminho_completo_pdf, poppler_path=path_to_poppler_binaries)
@@ -365,15 +136,15 @@ if __name__ == "__main__":
                             # Salve cada página como uma imagem temporária
                             nome_arquivo_imagem = f'temp_page_{os.path.splitext(arquivo)[0]}_{i}.png'
                             imagem.save(nome_arquivo_imagem, 'PNG')
-
                             # Extraia os dados da imagem
                             dados = extrair_dados_PDFImagem(nome_arquivo_imagem)
                             if dados:
                                 dados_extraidos.append(dados)
-
                             # Remova o arquivo temporário
                             os.remove(nome_arquivo_imagem)
-
                     except Exception as e:
                         print(f"Erro ao processar {arquivo}: {e}")
-print(qt_arquivos, " arquivos processados...")
+print(qt_arquivos_selec, " arquivos --selec-- processados...")
+print(qt_arquivos_img, " arquivos --img-- processados...")
+print("Total de ",qt_arquivos_img+qt_arquivos_selec, " arquivos processados...")
+print("Total de ",qt_arquivos, " arquivos na pasta.")
