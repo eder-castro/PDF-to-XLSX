@@ -91,7 +91,24 @@ def extrai_numero_nota_pdf_selecionavel(texto):
                                             numero_nota = numero_nota_match.group(1).strip()
                                             #print("============================ 9",numero_nota)
                                         else:
-                                            numero_nota = None
+                                            numero_nota_match = re.search(r"Número Nota\s*\n\s*(\d+)", texto, re.DOTALL)
+                                            if numero_nota_match:
+                                                numero_nota = numero_nota_match.group(1).strip()
+                                                #print("============================ 10", numero_nota)
+                                            else:
+                                                numero_nota_match = re.search(r"N[º°]?:\s*(\d+/\d+)", texto, re.DOTALL)
+                                                if numero_nota_match:
+                                                    numero_nota = numero_nota_match.group(1).strip()
+                                                    numero_nota = numero_nota.replace('/','')
+                                                    #print("============================ 11", numero_nota)
+                                                else:
+                                                    numero_nota_match = re.search(r"NFE\s*[Nn][oº]\s*(\d+)", texto, re.DOTALL)
+                                                    if numero_nota_match:
+                                                        numero_nota = numero_nota_match.group(1).strip()
+                                                        numero_nota = numero_nota.replace('/','')
+                                                        #print("============================ 11", numero_nota)
+                                                    else:
+                                                        numero_nota = None
     return numero_nota
     #dados_nf["Numero_Nota"] = numero_nota
 
@@ -243,6 +260,11 @@ def extrai_valores(texto):
                                             valor_total_match = re.search(r'((?<=\n)\d{1,3}(?:\.\d{3})*,\d{2})', texto, re.DOTALL)
                                             if valor_total_match:
                                                 valor_total = valor_total_match.group(1).strip()
+                                            else:
+                                                valor_servicos_match = re.search(r"Valor dos serviços:\s*R\$\s*([\d\.,]+)", texto, re.DOTALL)
+                                                if valor_servicos_match:
+                                                    valor_total = valor_servicos_match.group(1).strip()
+
     #dados_nf["Valor_Total"] = valor_total if valor_total_match else None
     valor_nf = valor_total if valor_total_match else None
     return valor_total
