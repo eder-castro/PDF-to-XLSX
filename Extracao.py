@@ -4,26 +4,7 @@ def extrai_numero_nota_pdf_imagem(texto):
     #print("Entrou em numero nota")
     # Número da Nota
     numero_nota = None
-    numero_nota_match = re.search(r'''
-    (?:
-        s:\s?=\s* |         # Pode ser "s: =" ou "s: =" (com ou sem espaço extra)
-        Barueri\s* |        # A palavra "Barueri"
-        os\s+qo\s* |        # A sequência "os qo"
-        ano:\s*=\s* |       # "ano: ="
-        no;\s+É\s* |        # "no; É"
-        qi\s* |             # "qi"
-        nos\s+O\s* |        # "nos O"
-        one\s+ |            # "one "
-        “\s*Co\s* |          # "“ Co"
-        O\s+a\s* |          # "O a"
-        O\s+asse\s* |       # "O asse"
-        O\s+ses\s* |        # "O ses"
-        ana\s* |            # "ana"
-        NFS-e\s* |
-        Ciao:\s* # "Ciao:"
-    )
-    ([^\s]+)                # Captura um ou mais caracteres que não sejam espaço
-''', texto, re.DOTALL | re.VERBOSE) # Use re.DOTALL e re.VERBOSE (ou re.X)
+    numero_nota_match = re.search(r'(?:s:\s?= |Barueri |os\s+qo |no;\s+É |qi |ano:\s*= |nos\s+O |one\s+|“ Co |O\s+a |O\s+asse |O\s+ses |ana|Ciao:)\s*([^\s]+)', texto, re.DOTALL)
     if numero_nota_match:
         numero_nota = numero_nota_match.group(1).strip()
         #print("============================ 0",numero_nota)
@@ -206,36 +187,84 @@ def extrai_Cnpjs(texto):
     matches_formatados = re.findall(cnpj_formatado_re, texto_processado)
     for cnpj_str in matches_formatados:
         cnpj_limpo = re.sub(r'[./\s-]', '', cnpj_str) # Remove todos os separadores e espaços
-        # Adiciona a validação para ignorar CNPJs com 8 zeros no início
-        if len(cnpj_limpo) == 14 and cnpj_limpo.isdigit() and not cnpj_limpo.startswith('00000000'):
+        # Adiciona a validação para ignorar CNPJs com 6 zeros no início
+        if len(cnpj_limpo) == 14 and cnpj_limpo.isdigit() and not cnpj_limpo.startswith('000000'):
             cnpjs_encontrados.append(cnpj_limpo)
     # Regex para CNPJs não formatados (14 dígitos consecutivos)
     cnpj_nao_formatado_re = r"(\d{14})\b"
     matches_nao_formatados = re.findall(cnpj_nao_formatado_re, texto_processado)
     for cnpj_str in matches_nao_formatados:
-        # Adiciona a validação para ignorar CNPJs com 8 zeros no início
+        # Adiciona a validação para ignorar CNPJs com 6 zeros no início
         if len(cnpj_str) == 14 and cnpj_str.isdigit() and not cnpj_str.startswith('000000'):
             cnpjs_encontrados.append(cnpj_str)
+    return cnpjs_encontrados
+    # cnpjs_unicos = []
+    # for cnpj in cnpjs_encontrados:
+    #     if cnpj not in cnpjs_unicos:
+    #         cnpjs_unicos.append(cnpj)
+    # if cnpjs_unicos:
+    #     cnpj_prestador = cnpjs_unicos[0]
+    #     #dados_nf["CNPJ_Prestador"] = cnpjs_unicos[0]
+    #     if len(cnpjs_unicos) > 1:
+    #         cnpj_tomador = cnpjs_unicos[1]
+    #         #dados_nf["CNPJ_Tomador"] = cnpjs_unicos[1]
+    #     else:
+    #         cnpj_tomador = None
+    #         #dados_nf["CNPJ_Tomador"] = None # Não encontrou um segundo CNPJ
+    # else:
+    #     cnpj_prestador = None
+    #     cnpj_tomador = None
+    #     #dados_nf["CNPJ_Prestador"] = None
+    #     #dados_nf["CNPJ_Tomador"] = None
+    # return cnpj_prestador, cnpj_tomador
 
-    cnpjs_unicos = []
-    for cnpj in cnpjs_encontrados:
-        if cnpj not in cnpjs_unicos:
-            cnpjs_unicos.append(cnpj)
-    if cnpjs_unicos:
-        cnpj_prestador = cnpjs_unicos[0]
-        #dados_nf["CNPJ_Prestador"] = cnpjs_unicos[0]
-        if len(cnpjs_unicos) > 1:
-            cnpj_tomador = cnpjs_unicos[1]
-            #dados_nf["CNPJ_Tomador"] = cnpjs_unicos[1]
-        else:
-            cnpj_tomador = None
-            #dados_nf["CNPJ_Tomador"] = None # Não encontrou um segundo CNPJ
-    else:
-        cnpj_prestador = None
-        cnpj_tomador = None
-        #dados_nf["CNPJ_Prestador"] = None
-        #dados_nf["CNPJ_Tomador"] = None
-    return cnpj_prestador, cnpj_tomador
+def extrai_Cpfs(texto):
+    def limpar_ocr_erros_comuns(texto_original):
+        texto_limpo = texto_original.replace('O', '0') # Letra O por número zero
+        return texto_limpo
+
+    texto_processado = limpar_ocr_erros_comuns(texto)
+    cpfs_encontrados = []
+
+    # Regex para CPFs formatados (ex: 000.000.000-00)
+    # Usando \s* para flexibilidade de espaços
+    cpf_formatado_re = r"(\d{3}\s*\.\s*\d{3}\s*\.\s*\d{3}\s*-\s*\d{2})"
+    matches_formatados = re.findall(cpf_formatado_re, texto_processado)
+    for cpf_str in matches_formatados:
+        cpf_limpo = re.sub(r'[./\s-]', '', cpf_str) # Remove todos os separadores e espaços
+        # Adiciona a validação para ignorar CPFs com muitos zeros no início
+        if len(cpf_limpo) == 11 and cpf_limpo.isdigit() and not cpf_limpo.startswith('000000000'):
+            cpfs_encontrados.append(cpf_limpo)
+
+    # Regex para CPFs não formatados (11 dígitos consecutivos)
+    cpf_nao_formatado_re = r"(\d{11})\b"
+    matches_nao_formatados = re.findall(cpf_nao_formatado_re, texto_processado)
+    for cpf_str in matches_nao_formatados:
+        # Adiciona a validação para ignorar CPFs com muitos zeros no início
+        if len(cpf_str) == 11 and cpf_str.isdigit() and not cpf_str.startswith('000000000'):
+            cpfs_encontrados.append(cpf_str)
+
+    return cpfs_encontrados # A função agora retorna a lista de CPFs encontrados
+
+def extrai_documentos(texto, cnpjs_encontrados, cpfs_encontrados):
+    cnpjs_encontrados = extrai_Cnpjs(texto)
+    cpfs_encontrados = extrai_Cpfs(texto)
+    documentos_totais = cnpjs_encontrados + cpfs_encontrados
+    # 4. Remove duplicatas mantendo a ordem de primeira ocorrência
+    documentos_unicos = []
+    for doc in documentos_totais:
+        if doc not in documentos_unicos:
+            documentos_unicos.append(doc)
+
+    # 5. Atribui o primeiro e segundo documentos encontrados como prestador e tomador
+    doc_prestador = None
+    doc_tomador = None
+
+    if documentos_unicos:
+        doc_prestador = documentos_unicos[0]
+        if len(documentos_unicos) > 1:
+            doc_tomador = documentos_unicos[1]
+    return doc_prestador, doc_tomador
 
 def extrai_pedido_e_contrato(texto):
     #print("Entrou em Pedido e contrato")

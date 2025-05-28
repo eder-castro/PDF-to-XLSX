@@ -11,13 +11,13 @@ import Extracao
 path_to_poppler_binaries = r'C:\Users\eder.castro\AppData\Local\Programs\poppler-24.08.0\Library\bin' # Substitua pelo seu caminho real
 
 pasta_PDFs = './PDFs'
-qt_arquivos_selec = 0
-qt_arquivos_img = 0
-nao_processados = 0
 qt_arquivos = 0
+nao_processados = 0
+qt_arquivos_img = 0
+qt_arquivos_selec = 0
 dados_extraidos = []
 
-def extrair_dados_PDFSelecionavel(nome_arquivo):
+def extrair_dados_PDFSelecionavel(arquivo):
     #print("Entrou em extrair_dados_PDFSelecionavel")
     global qt_arquivos_selec
     global nao_processados
@@ -30,34 +30,36 @@ def extrair_dados_PDFSelecionavel(nome_arquivo):
             #print("***** TEXTO DO PDF *****\n", texto)
             dados_extraidos_selec = extrair_campos(texto)
             #print(dados_extraidos_selec)
-            campos_faltantes = [key for key, value in dados_extraidos_selec.items() if value is None]
-            if len(campos_faltantes) > 0:
-                nao_processados += 1
-                print(nao_processados, "-", subpasta)
-                #print(dados_extraidos)
-                print("Faltantes-----", campos_faltantes)
+            campos_faltantes_selec = [key for key, value in dados_extraidos_selec.items() if value is None]
+            if len(campos_faltantes_selec) == 5:
+                    nao_processados += 1
+                    qt_arquivos_selec -= 1
+                    #print(nao_processados, "-", subpasta)
+                    #print(dados_extraidos)
             else:
+                print(" - - - - - - - - - Campos Faltantes Selec: ", campos_faltantes_selec)
                 qt_arquivos_selec += 1
-            return dados_extraidos_selec
+        if qt_arquivos_selec < 0:
+            qt_arquivos_selec = 0
+    return dados_extraidos_selec
         
 def extrair_dados_PDFImagem(arquivo):
     #print("Entrou em extrair_dados_PDFImagem")
     global qt_arquivos_img
     """Extrai dados relevantes de uma imagem de NF com tentativas de pré-processamento para todos os campos faltantes."""
     try:
-        qt_arquivos_img +=1
-        imagem_pil_original = Image.open(arquivo).convert('L')
+        qt_arquivos_img += 1
+        imagem_pil_original = Image.open(arquivo)#.convert('L')
         #print("Chama Imagem para: ", arquivo)
         texto_original = pytesseract.image_to_string(imagem_pil_original, lang='por', config='--psm 6 --oem 3')
         dados_extraidos_img = extrair_campos(texto_original)
         #print("*****************    ORIGINAL    *****************\n",texto_original)
         # Filtros a serem testados
-        filtros = ['max', 'median', 'unsharp_mask', 'sharpen', 'minfilter', 'smooth', 'smooth_more', 'find_edges',
-                   'emboss', 'edge_enhance_more', 'edge_enhance', 'detail', 'contour', 'blur']
-
+        filtros = ['max', 'median', 'unsharp_mask', 'sharpen', 'minfilter', 'contour',
+                   'emboss','find_edges', 'edge_enhance', 'edge_enhance_more', 'detail', 'blur','smooth','smooth_more']
         campos_faltantes_atual = [key for key, value in dados_extraidos_img.items() if value is None]
-        print(campos_faltantes_atual)
-         # Continuamos o loop de filtros ENQUANTO houver campos faltando
+        #print(f"Campos faltantes iniciais: {campos_faltantes_atual}")
+        # Continuamos o loop de filtros ENQUANTO houver campos faltando
         # e ENQUANTO houver filtros para tentar.
         # Iterar sobre uma cópia da lista de filtros para não modificar durante o loop
         for filtro in filtros:
@@ -67,7 +69,7 @@ def extrair_dados_PDFImagem(arquivo):
                 break
             imagem_pre_processada = preprocessamento(arquivo, filtro)
             if imagem_pre_processada:
-                print(f"Tentando extrair campos com filtro: {filtro}")
+                #print(f"Tentando extrair campos com filtro: {filtro}")
                 texto_pre_processado = pytesseract.image_to_string(imagem_pre_processada, lang='por', config='--psm 6 --oem 3')
                 dados_nf_pre_processado = extrair_campos(texto_pre_processado)
                 #print(f"Texto pré-processado com {filtro}:\n{texto_pre_processado}")
@@ -77,8 +79,10 @@ def extrair_dados_PDFImagem(arquivo):
                         valor_encontrado_com_filtro = dados_nf_pre_processado.get(campo)
                         if valor_encontrado_com_filtro:
                             dados_extraidos_img[campo] = valor_encontrado_com_filtro
-                            campos_faltantes_atual.remove(campo) # Remove o campo da lista de faltantes
-                print("Atual", campos_faltantes_atual)
+                # Recalcula campos_faltantes_atual após cada filtro
+                # Esta é a mudança chave para garantir que a lista esteja sempre atualizada
+                campos_faltantes_atual = [key for key, value in dados_extraidos_img.items() if value is None]
+                #print(f"Campos faltantes após filtro '{filtro}': {campos_faltantes_atual}")
         #print(f"Texto extraído de {arquivo} (original):\n{texto_original}")
         #print(f"Dados extraídos de {arquivo}:\n{dados_nf}")
         print(dados_extraidos_img)
@@ -103,13 +107,14 @@ def extrair_campos(texto):
     else:
         dados_nf["Numero_Nota"] = Extracao.extrai_numero_nota_pdf_imagem(texto)
     dados_nf["Data_Emissao"] = Extracao.extrai_data_emissao(texto)
-    lista_CNPJs = Extracao.extrai_Cnpjs(texto)
+    lista_CNPJs = Extracao.extrai_documentos(texto, Extracao.extrai_Cnpjs, Extracao.extrai_Cpfs)
     dados_nf["CNPJ_Prestador"] = lista_CNPJs[0]
     dados_nf["CNPJ_Tomador"] = lista_CNPJs[1]
     lista_pedido_contrato = Extracao.extrai_pedido_e_contrato(texto)
     dados_nf["Pedido"] = lista_pedido_contrato[0]
     dados_nf["Contrato"] = lista_pedido_contrato[1]
     dados_nf["Valor_Total"] = Extracao.extrai_valores(texto)
+    #print("Dados extraídos --------------------------------------------------\n", dados_nf)
     return dados_nf
 
 def preprocessamento(image_path, filter_type):
@@ -119,21 +124,21 @@ def preprocessamento(image_path, filter_type):
 
         if filter_type == 'max':
             # MaxFilter precisa ser instanciado, e geralmente aceita um 'size'
-            img = img.filter(ImageFilter.MaxFilter(size=3)) # Usando size=3 como exemplo
+            img = img.filter(ImageFilter.MaxFilter) # Usando size=3 como exemplo
         elif filter_type == 'median':
             # MedianFilter precisa ser instanciado
-            img = img.filter(ImageFilter.MedianFilter(size=3)) # Usando size=3 como exemplo
+            img = img.filter(ImageFilter.MedianFilter) # Usando size=3 como exemplo
         elif filter_type == 'unsharp_mask':
             # UnsharpMask está correto, é uma classe que precisa ser instanciada
             img = img.filter(ImageFilter.UnsharpMask())
-        elif filter_type == 'smooth_more':
-            img = img.filter(ImageFilter.SMOOTH_MORE)
         elif filter_type == 'sharpen':
             # SHARPEN é uma constante, não precisa de instanciamento
             img = img.filter(ImageFilter.SHARPEN)
         elif filter_type == 'minfilter':
             # MinFilter precisa ser instanciado, e geralmente aceita um 'size'
-            img = img.filter(ImageFilter.MinFilter(size=3)) # Usando size=3 como exemplo
+            img = img.filter(ImageFilter.MinFilter) # Usando size=3 como exemplo
+        elif filter_type == 'smooth_more':
+            img = img.filter(ImageFilter.SMOOTH_MORE)
         elif filter_type == 'blur':
             # BLUR é uma constante
             img = img.filter(ImageFilter.BLUR)
