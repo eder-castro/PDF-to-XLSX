@@ -15,40 +15,45 @@ qt_arquivos = 0
 nao_processados = 0
 qt_arquivos_img = 0
 qt_arquivos_selec = 0
+arquivos_selec_problema = 0
+arquivos_para_reprocessar = 0
+processados_img = 0
+arquivos_nao_processados = []
 dados_extraidos = []
 
-def extrair_dados_PDFSelecionavel(arquivo):
+def extrair_dados_PDFSelecionavel(caminho_arquivo):
     #print("Entrou em extrair_dados_PDFSelecionavel")
     global qt_arquivos_selec
     global nao_processados
-    with open(f"{pasta_e_subpasta_nfs}/{arquivo}", "rb") as arquivo_pdf:
+    global arquivos_para_reprocessar
+    with open(caminho_arquivo, "rb") as arquivo_pdf:
         reader = PyPDF2.PdfReader(arquivo_pdf)
         #print(reader)
         texto = ""
         for page in reader.pages:
             texto += page.extract_text() or "-"
-            #print("***** TEXTO DO PDF *****\n", texto)
-            dados_extraidos_selec = extrair_campos(texto)
-            #print(dados_extraidos_selec)
-            campos_faltantes_selec = [key for key, value in dados_extraidos_selec.items() if value is None]
-            if len(campos_faltantes_selec) == 5:
-                    nao_processados += 1
-                    qt_arquivos_selec -= 1
-                    #print(nao_processados, "-", subpasta)
-                    #print(dados_extraidos)
-            else:
-                print(" - - - - - - - - - Campos Faltantes Selec: ", campos_faltantes_selec)
-                qt_arquivos_selec += 1
-        if qt_arquivos_selec < 0:
-            qt_arquivos_selec = 0
+        texto += texto
+        #print("***** TEXTO DO PDF SELEC *****\n", texto)
+        dados_extraidos_selec = extrair_campos(texto)
+        #print(dados_extraidos_selec)
+        campos_faltantes_selec = [key for key, value in dados_extraidos_selec.items() if value is None]
+        if len(campos_faltantes_selec) == 5:
+            arquivos_nao_processados.append(arquivo)
+            arquivos_para_reprocessar += 1
+        elif len(campos_faltantes_selec) > 0:
+            arquivos_selec_problema.append(arquivo)
+        else:
+            print(dados_extraidos_selec)
     return dados_extraidos_selec
-        
+
 def extrair_dados_PDFImagem(arquivo):
-    #print("Entrou em extrair_dados_PDFImagem")
+    print("Entrou em extrair_dados_PDFImagem")
     global qt_arquivos_img
+    global processados_img
     """Extrai dados relevantes de uma imagem de NF com tentativas de pré-processamento para todos os campos faltantes."""
     try:
         qt_arquivos_img += 1
+        processados_img += 1
         imagem_pil_original = Image.open(arquivo)#.convert('L')
         #print("Chama Imagem para: ", arquivo)
         texto_original = pytesseract.image_to_string(imagem_pil_original, lang='por', config='--psm 6 --oem 3')
@@ -85,6 +90,8 @@ def extrair_dados_PDFImagem(arquivo):
                 #print(f"Campos faltantes após filtro '{filtro}': {campos_faltantes_atual}")
         #print(f"Texto extraído de {arquivo} (original):\n{texto_original}")
         #print(f"Dados extraídos de {arquivo}:\n{dados_nf}")
+        #print(dados_extraidos_img)
+        #arquivos_nao_processados.pop(0)
         print(dados_extraidos_img)
         return dados_extraidos_img
     except Exception as e:
@@ -102,10 +109,12 @@ def extrair_campos(texto):
     "Contrato": None,
     "Valor_Total": None
     }
-    if nao_processados == 0:
-        dados_nf["Numero_Nota"] = Extracao.extrai_numero_nota_pdf_selecionavel(texto)
+
+    lista_num_nf = Extracao.extrai_numero_nota_pdf_selecionavel(texto), Extracao.extrai_numero_nota_pdf_imagem(texto)
+    if lista_num_nf[0] is not None:
+        dados_nf["Numero_Nota"] = lista_num_nf[0]
     else:
-        dados_nf["Numero_Nota"] = Extracao.extrai_numero_nota_pdf_imagem(texto)
+        dados_nf["Numero_Nota"] = lista_num_nf[1]
     dados_nf["Data_Emissao"] = Extracao.extrai_data_emissao(texto)
     lista_CNPJs = Extracao.extrai_documentos(texto, Extracao.extrai_Cnpjs, Extracao.extrai_Cpfs)
     dados_nf["CNPJ_Prestador"] = lista_CNPJs[0]
@@ -115,6 +124,7 @@ def extrair_campos(texto):
     dados_nf["Contrato"] = lista_pedido_contrato[1]
     dados_nf["Valor_Total"] = Extracao.extrai_valores(texto)
     #print("Dados extraídos --------------------------------------------------\n", dados_nf)
+    #dados_extraidos.append(dados_nf)
     return dados_nf
 
 def preprocessamento(image_path, filter_type):
@@ -166,7 +176,7 @@ def preprocessamento(image_path, filter_type):
         return None
 
 def executa_PDFImg(arquivo):
-        caminho_completo_pdf = os.path.join(pasta_e_subpasta_nfs, arquivo)
+        caminho_completo_pdf = os.path.join(caminho_completo_item, arquivo)
         try: # tente converter o pdf em imagem usando o poppler e extrair as informações
             # Converta o PDF para uma lista de objetos PIL Image
             imagens = convert_from_path(caminho_completo_pdf, poppler_path=path_to_poppler_binaries)
@@ -184,37 +194,104 @@ def executa_PDFImg(arquivo):
             print(f"Erro ao processar {arquivo}: {e}")
         return dados_extraidos
 
-def executa_PDFSelec(arquivo):
-    global qt_arquivos
-    qt_arquivos += 1
-    dados_retornados_PDFSelecionavel = extrair_dados_PDFSelecionavel(arquivo)
-    return dados_retornados_PDFSelecionavel
-
+# def executa_PDFSelec(arquivo):
+#     global qt_arquivos
+#     qt_arquivos += 1
+#     dados_retornados_PDFSelecionavel = extrair_dados_PDFSelecionavel(arquivo)
+#     return dados_retornados_PDFSelecionavel
 
 if __name__ == "__main__":
-    for subpasta in os.listdir(pasta_PDFs):
-        pasta_e_subpasta_nfs = os.path.join(pasta_PDFs, subpasta)
-        lista_arquivos = os.listdir(pasta_e_subpasta_nfs)
-        arq_lidos = len(lista_arquivos)
-        #print (subpasta)
-        #print ("Arquivos na lista: ",len(lista_arquivos))
-        # Para cada arquivo na lista de arquivos
-        for arquivo in lista_arquivos:
-            #subpasta_arquivo = os.path.join(subpasta, arquivo)
-            #print(arquivo)
-            arq_lidos -= 1
-            if arquivo.lower().endswith(".pdf"):
-                #print("Chama selecionavel para: ", arquivo)
-                dados_retornados_PDFSelec = executa_PDFSelec(arquivo)
-                #print (dados_retornados_PDFSelec)
-                #print ("Arquivos lidos: ", arq_lidos)
-                if nao_processados == 0:
-                    print (dados_retornados_PDFSelec)
+    # 1. Listar o conteúdo da pasta principal
+    itens_na_pasta_principal = os.listdir(pasta_PDFs)
+    for item in itens_na_pasta_principal:
+        caminho_completo_item = os.path.join(pasta_PDFs, item)
+        # 2. Verificar se o item é uma subpasta (de primeiro nível)
+        if os.path.isdir(caminho_completo_item):
+            nome_subpasta = item
+            print(f"\n--- Entrando na subpasta: {nome_subpasta} ---")
+            arquivos_nao_processados = []
+            subpastas_contadas = 0
+            arquivos_contados = 0
+            # 3. Listar o conteúdo DESSA subpasta
+            itens_na_subpasta = os.listdir(caminho_completo_item)
+            for arquivo in itens_na_subpasta:
+                caminho_completo_sub_item = os.path.join(caminho_completo_item, arquivo)
+                if os.path.isdir(caminho_completo_sub_item):
+                    subpastas_contadas += 1
                 else:
-                    dados_retornados_PDFImg = executa_PDFImg(arquivo)
-                    nao_processados -= 1
+                    arquivos_contados += 1
+                    #print("- - - - - Tentando processar o arquivo com a função selec - - - - -")
+                    if not extrair_dados_PDFSelecionavel(caminho_completo_sub_item):
+                        print("Nenhum arquivo Selec")
+                        
+            #print(f"Total de pastas em {nome_subpasta} = {subpastas_contadas}")
+            processados_selec = arquivos_contados - arquivos_para_reprocessar
+            print(f"Total de arquivos processados pelo Selec em {nome_subpasta} = {processados_selec}")
+            # Após tentar processar todos os arquivos da pasta com a função principal,
+            # itera sobre os que não foram processados para a função secundária.
+            if arquivos_nao_processados:
+                print(f"\n--- Reprocessando {arquivos_para_reprocessar} arquivos em {nome_subpasta} que não foram processados inicialmente ---")
+                for arquivo_reprocessar in arquivos_nao_processados:
+                    executa_PDFImg(arquivo_reprocessar)
+            print(f"Total de arquivos processados pelo Img em {nome_subpasta} = {processados_img}")
+            # else:
+            #     print(f"\nTodos os arquivos em {nome_subpasta} foram processados pela função PDF_selec.")
+            print(f"--- Saindo da subpasta: {nome_subpasta} ---")
 
 
+
+
+
+
+
+
+
+
+    # itens_na_pasta_principal = os.listdir(pasta_PDFs)
+    # for item in itens_na_pasta_principal:
+    #     caminho_completo_item = os.path.join(pasta_PDFs, item)
+    #     # 2. Verificar se o item é uma subpasta (de primeiro nível)
+    #     if os.path.isdir(caminho_completo_item):
+    #         nome_subpasta = item
+    #         print(f"--- {caminho_completo_item}) ---")
+    #         # 3. Listar o conteúdo DESSA subpasta
+    #         itens_na_subpasta = os.listdir(caminho_completo_item)
+    #         for sub_item in itens_na_subpasta:
+    #             caminho_completo_sub_item = os.path.join(caminho_completo_item, sub_item)
+    #             print(sub_item)
+    #             # 4. Verificar se o sub_item é um arquivo
+    #             if os.path.isfile(caminho_completo_sub_item):
+    #                 arq_lidos += 1
+    #                 arquivo = sub_item
+    #                 if arquivo.lower().endswith(".pdf"):
+    #                 #print(f"  Processando arquivo: {arquivo} (em {nome_subpasta})")
+    #                 #print("Chama selecionavel para: ", arquivo)
+    #                 while arq_lidos != 0:
+    #                     print("Arquivos lidos = ", arq_lidos)
+    #                     dados_retornados_PDFSelec = executa_PDFSelec(arquivo)
+    #                     print ("\n- - - - - SELEC - - - - -\n", dados_retornados_PDFSelec)
+    #                     print("\n- - - - - - - - - - - - - - - - - - - - Lista de arquivos não processados após SELEC - - - - - - - - - - - - - - - - - - - -\n", arquivos_nao_processados)
+    #                     arq_lidos -= 1
+    #                     #print ("Arquivos lidos: ", arq_lidos)
+    #                 if len(arquivos_nao_processados) > 0:
+    #                         dados_retornados_PDFImg = executa_PDFImg(arquivo)
+    #                         print ("\n- - - - - IMG - - - - -\n", dados_retornados_PDFImg)
+    #                         print("\n- - - - - - - - - - - - - - - - - - - - Lista de arquivos não processados após IMG - - - - - - - - - - - - - - - - - - - -\n", arquivos_nao_processados)
+    # # for subpasta in os.listdir(pasta_PDFs):
+    # #     pasta_e_subpasta_nfs = os.path.join(pasta_PDFs, subpasta)
+
+    # #     lista_arquivos = os.listdir(pasta_e_subpasta_nfs)
+
+    # #     arq_lidos = len(lista_arquivos)
+    # #     #print (subpasta)
+    # #     #print ("Arquivos na lista: ",len(lista_arquivos))
+    # #     # Para cada arquivo na lista de arquivos
+    # #     for arquivo in lista_arquivos:
+    # #         #subpasta_arquivo = os.path.join(subpasta, arquivo)
+    # #         #print(arquivo)
+print("Arquivos reprocessar ----", arquivos_nao_processados)
+print("Selec problema ----------", arquivos_selec_problema)
+#print(dados_extraidos)
 print(qt_arquivos_selec, " arquivos --selec-- processados...")
 print(qt_arquivos_img, " arquivos --img-- processados...")
 print("Total de ",qt_arquivos_img+qt_arquivos_selec, " arquivos processados...")
