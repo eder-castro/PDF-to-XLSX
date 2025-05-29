@@ -11,19 +11,16 @@ import Extracao
 path_to_poppler_binaries = r'C:\Users\eder.castro\AppData\Local\Programs\poppler-24.08.0\Library\bin' # Substitua pelo seu caminho real
 
 pasta_PDFs = './PDFs'
-qt_arquivos = 0
-nao_processados = 0
-qt_arquivos_img = 0
-qt_arquivos_selec = 0
-arquivos_selec_problema = 0
-arquivos_para_reprocessar = 0
+processados_selec = 0
 processados_img = 0
+problema_selec = 0
+arquivos_para_reprocessar = 0
 arquivos_nao_processados = []
 dados_extraidos = []
 
 def extrair_dados_PDFSelecionavel(caminho_arquivo):
     #print("Entrou em extrair_dados_PDFSelecionavel")
-    global qt_arquivos_selec
+    global processados_selec
     global nao_processados
     global arquivos_para_reprocessar
     with open(caminho_arquivo, "rb") as arquivo_pdf:
@@ -41,18 +38,17 @@ def extrair_dados_PDFSelecionavel(caminho_arquivo):
             arquivos_nao_processados.append(arquivo)
             arquivos_para_reprocessar += 1
         elif len(campos_faltantes_selec) > 0:
-            arquivos_selec_problema.append(arquivo)
+            problema_selec.append(arquivo)
         else:
-            print(dados_extraidos_selec)
+            dados_extraidos.append(dados_extraidos_selec)
     return dados_extraidos_selec
 
 def extrair_dados_PDFImagem(arquivo):
-    print("Entrou em extrair_dados_PDFImagem")
+    #print("Entrou em extrair_dados_PDFImagem")
     global qt_arquivos_img
     global processados_img
     """Extrai dados relevantes de uma imagem de NF com tentativas de pré-processamento para todos os campos faltantes."""
     try:
-        qt_arquivos_img += 1
         processados_img += 1
         imagem_pil_original = Image.open(arquivo)#.convert('L')
         #print("Chama Imagem para: ", arquivo)
@@ -91,8 +87,8 @@ def extrair_dados_PDFImagem(arquivo):
         #print(f"Texto extraído de {arquivo} (original):\n{texto_original}")
         #print(f"Dados extraídos de {arquivo}:\n{dados_nf}")
         #print(dados_extraidos_img)
-        #arquivos_nao_processados.pop(0)
-        print(dados_extraidos_img)
+        #print(arquivos_nao_processados)
+        #print(dados_extraidos_img)
         return dados_extraidos_img
     except Exception as e:
         print(f"Erro ao processar {arquivo}: {e}")
@@ -194,12 +190,6 @@ def executa_PDFImg(arquivo):
             print(f"Erro ao processar {arquivo}: {e}")
         return dados_extraidos
 
-# def executa_PDFSelec(arquivo):
-#     global qt_arquivos
-#     qt_arquivos += 1
-#     dados_retornados_PDFSelecionavel = extrair_dados_PDFSelecionavel(arquivo)
-#     return dados_retornados_PDFSelecionavel
-
 if __name__ == "__main__":
     # 1. Listar o conteúdo da pasta principal
     itens_na_pasta_principal = os.listdir(pasta_PDFs)
@@ -208,7 +198,7 @@ if __name__ == "__main__":
         # 2. Verificar se o item é uma subpasta (de primeiro nível)
         if os.path.isdir(caminho_completo_item):
             nome_subpasta = item
-            print(f"\n--- Entrando na subpasta: {nome_subpasta} ---")
+            #print(f"\n--- Entrando na subpasta: {nome_subpasta} ---")
             arquivos_nao_processados = []
             subpastas_contadas = 0
             arquivos_contados = 0
@@ -223,76 +213,24 @@ if __name__ == "__main__":
                     #print("- - - - - Tentando processar o arquivo com a função selec - - - - -")
                     if not extrair_dados_PDFSelecionavel(caminho_completo_sub_item):
                         print("Nenhum arquivo Selec")
-                        
             #print(f"Total de pastas em {nome_subpasta} = {subpastas_contadas}")
             processados_selec = arquivos_contados - arquivos_para_reprocessar
-            print(f"Total de arquivos processados pelo Selec em {nome_subpasta} = {processados_selec}")
             # Após tentar processar todos os arquivos da pasta com a função principal,
             # itera sobre os que não foram processados para a função secundária.
             if arquivos_nao_processados:
-                print(f"\n--- Reprocessando {arquivos_para_reprocessar} arquivos em {nome_subpasta} que não foram processados inicialmente ---")
+                #print(f"\n--- Reprocessando {arquivos_para_reprocessar} arquivos em {nome_subpasta} que não foram processados inicialmente ---")
                 for arquivo_reprocessar in arquivos_nao_processados:
                     executa_PDFImg(arquivo_reprocessar)
-            print(f"Total de arquivos processados pelo Img em {nome_subpasta} = {processados_img}")
             # else:
             #     print(f"\nTodos os arquivos em {nome_subpasta} foram processados pela função PDF_selec.")
-            print(f"--- Saindo da subpasta: {nome_subpasta} ---")
-
-
-
-
-
-
-
-
-
-
-    # itens_na_pasta_principal = os.listdir(pasta_PDFs)
-    # for item in itens_na_pasta_principal:
-    #     caminho_completo_item = os.path.join(pasta_PDFs, item)
-    #     # 2. Verificar se o item é uma subpasta (de primeiro nível)
-    #     if os.path.isdir(caminho_completo_item):
-    #         nome_subpasta = item
-    #         print(f"--- {caminho_completo_item}) ---")
-    #         # 3. Listar o conteúdo DESSA subpasta
-    #         itens_na_subpasta = os.listdir(caminho_completo_item)
-    #         for sub_item in itens_na_subpasta:
-    #             caminho_completo_sub_item = os.path.join(caminho_completo_item, sub_item)
-    #             print(sub_item)
-    #             # 4. Verificar se o sub_item é um arquivo
-    #             if os.path.isfile(caminho_completo_sub_item):
-    #                 arq_lidos += 1
-    #                 arquivo = sub_item
-    #                 if arquivo.lower().endswith(".pdf"):
-    #                 #print(f"  Processando arquivo: {arquivo} (em {nome_subpasta})")
-    #                 #print("Chama selecionavel para: ", arquivo)
-    #                 while arq_lidos != 0:
-    #                     print("Arquivos lidos = ", arq_lidos)
-    #                     dados_retornados_PDFSelec = executa_PDFSelec(arquivo)
-    #                     print ("\n- - - - - SELEC - - - - -\n", dados_retornados_PDFSelec)
-    #                     print("\n- - - - - - - - - - - - - - - - - - - - Lista de arquivos não processados após SELEC - - - - - - - - - - - - - - - - - - - -\n", arquivos_nao_processados)
-    #                     arq_lidos -= 1
-    #                     #print ("Arquivos lidos: ", arq_lidos)
-    #                 if len(arquivos_nao_processados) > 0:
-    #                         dados_retornados_PDFImg = executa_PDFImg(arquivo)
-    #                         print ("\n- - - - - IMG - - - - -\n", dados_retornados_PDFImg)
-    #                         print("\n- - - - - - - - - - - - - - - - - - - - Lista de arquivos não processados após IMG - - - - - - - - - - - - - - - - - - - -\n", arquivos_nao_processados)
-    # # for subpasta in os.listdir(pasta_PDFs):
-    # #     pasta_e_subpasta_nfs = os.path.join(pasta_PDFs, subpasta)
-
-    # #     lista_arquivos = os.listdir(pasta_e_subpasta_nfs)
-
-    # #     arq_lidos = len(lista_arquivos)
-    # #     #print (subpasta)
-    # #     #print ("Arquivos na lista: ",len(lista_arquivos))
-    # #     # Para cada arquivo na lista de arquivos
-    # #     for arquivo in lista_arquivos:
-    # #         #subpasta_arquivo = os.path.join(subpasta, arquivo)
-    # #         #print(arquivo)
-print("Arquivos reprocessar ----", arquivos_nao_processados)
-print("Selec problema ----------", arquivos_selec_problema)
-#print(dados_extraidos)
-print(qt_arquivos_selec, " arquivos --selec-- processados...")
-print(qt_arquivos_img, " arquivos --img-- processados...")
-print("Total de ",qt_arquivos_img+qt_arquivos_selec, " arquivos processados...")
-print("Total de ",qt_arquivos, " arquivos na pasta.")
+            arquivos_para_reprocessar = 0
+            arquivos_nao_processados.clear()
+            # print(f"Total de arquivos processados pelo Selec em {nome_subpasta} = {processados_selec}")
+            # print(f"Total de arquivos processados pelo Img em {nome_subpasta} = {processados_img}")
+            # print(f"{processados_selec + processados_img} arquivos processados, de um Total de {arquivos_contados} arquivos na pasta. ")
+            # print(f"--- Saindo da subpasta: {nome_subpasta} ---")
+            processados_selec = 0
+            problema_selec = 0
+            processados_img = 0
+    for item in dados_extraidos:
+        print(item)
