@@ -8,18 +8,46 @@ from pdf2image import convert_from_path
 def preprocess_image(image_path, filter_type):
     """Pré-processa a imagem com um filtro específico."""
     try:
-        img = Image.open(image_path).convert('L')
+        img = Image.open(image_path).convert('L') # Converte para escala de cinza
+
         if filter_type == 'max':
-            img = img.filter(ImageFilter.MaxFilter)
+            # MaxFilter precisa ser instanciado, e geralmente aceita um 'size'
+            img = img.filter(ImageFilter.MaxFilter) # Usando size=3 como exemplo
         elif filter_type == 'median':
-            img = img.filter(ImageFilter.MedianFilter)
+            # MedianFilter precisa ser instanciado
+            img = img.filter(ImageFilter.MedianFilter) # Usando size=3 como exemplo
         elif filter_type == 'unsharp_mask':
+            # UnsharpMask está correto, é uma classe que precisa ser instanciada
             img = img.filter(ImageFilter.UnsharpMask())
         elif filter_type == 'sharpen':
+            # SHARPEN é uma constante, não precisa de instanciamento
             img = img.filter(ImageFilter.SHARPEN)
         elif filter_type == 'minfilter':
-            img = img.filter(ImageFilter.MinFilter)
-        # Adicione outros filtros conforme necessário
+            # MinFilter precisa ser instanciado, e geralmente aceita um 'size'
+            img = img.filter(ImageFilter.MinFilter) # Usando size=3 como exemplo
+        elif filter_type == 'smooth_more':
+            img = img.filter(ImageFilter.SMOOTH_MORE)
+        elif filter_type == 'blur':
+            # BLUR é uma constante
+            img = img.filter(ImageFilter.BLUR)
+        elif filter_type == 'contour':
+            img = img.filter(ImageFilter.CONTOUR)
+        elif filter_type == 'detail':
+            img = img.filter(ImageFilter.DETAIL)
+        elif filter_type == 'edge_enhance':
+            img = img.filter(ImageFilter.EDGE_ENHANCE)
+        elif filter_type == 'edge_enhance_more':
+            img = img.filter(ImageFilter.EDGE_ENHANCE_MORE)
+        elif filter_type == 'emboss':
+            img = img.filter(ImageFilter.EMBOSS)
+        elif filter_type == 'find_edges':
+            img = img.filter(ImageFilter.FIND_EDGES)
+        elif filter_type == 'smooth':
+            img = img.filter(ImageFilter.SMOOTH)
+        else:
+            print(f"Aviso: Filtro '{filter_type}' não reconhecido. A imagem não foi processada.")
+            return img # Retorna a imagem original se o filtro não for encontrado
+
         return img
     except Exception as e:
         print(f"Erro ao pré-processar a imagem com {filter_type}: {e}")
@@ -32,19 +60,20 @@ def extrair_dados_nf(caminho_imagem):
 
         texto_original = pytesseract.image_to_string(imagem_pil_original, lang='por', config='--psm 6 --oem 3')
         dados_nf = extrair_campos(texto_original)
-        #print("*****************    ORIGINAL    *****************\n",texto_original)
+        print("*****************    ORIGINAL    *****************\n",texto_original)
         campos_faltantes = [key for key, value in dados_nf.items() if value is None]
 
         if campos_faltantes:
-            filtros = ['max', 'median', 'unsharp_mask', 'sharpen', 'minfilter'] # Adicione mais filtros se desejar
+            filtros = ['max','median', 'unsharp_mask', 'sharpen', 'minfilter', 'contour',
+                   'emboss','find_edges', 'edge_enhance', 'edge_enhance_more', 'detail', 'blur','smooth','smooth_more']
             #print(f"Texto extraído de {caminho_imagem}")
             for filtro in filtros:
                 imagem_pre_processada = preprocess_image(caminho_imagem, filtro)
                 if imagem_pre_processada:
-                    #print(f"Tentando extrair campos faltantes com filtro: {filtro}")
+                    print(f"Tentando extrair campos faltantes com filtro: {filtro}")
                     texto_pre_processado = pytesseract.image_to_string(imagem_pre_processada, lang='por', config='--psm 6 --oem 3')
                     dados_nf_pre_processado = extrair_campos(texto_pre_processado)
-                    #print("***************** PRE PROCESSADO *****************\n",texto_pre_processado)
+                    print("***************** PRE PROCESSADO *****************\n",texto_pre_processado)
                     for campo in campos_faltantes:
                         if dados_nf[campo] is None and dados_nf_pre_processado.get(campo):
                             dados_nf[campo] = dados_nf_pre_processado[campo]
@@ -72,7 +101,7 @@ def extrair_campos(texto):
 
     # Número da Nota
     numero_nota = None
-    numero_nota_match = re.search(r'(?:s:\s?= |Barueri |os\s+qo |no;\s+É |qi |nos\s+O |one\s+|“ Co |O\s+a |O\s+asse |O\s+ses |ana|Ciao:)\s*([^\s]+)', texto, re.DOTALL)
+    numero_nota_match = re.search(r'(?:s:\s?= |Barueri |os\s+qo |PAULO \[|no;\s+É |qi |nos\s+O |one\s+|“ Co |O\s+a |O\s+asse |O\s+ses |ana|Ciao:)\s*([^\s]+)', texto, re.DOTALL)
     if numero_nota_match:
         numero_nota = numero_nota_match.group(1).strip()
     else:
@@ -231,7 +260,7 @@ def criar_planilha_excel(dados_nfs, caminho_excel='dados_nfs.xlsx'):
         print(f"Erro ao salvar a planilha: {e}")
 
 if __name__ == "__main__":
-    pasta_nfs = './SP Imagem'
+    pasta_nfs = './PDFs/Novas'
     arquivos_pdf = [f for f in os.listdir(pasta_nfs) if f.lower().endswith('.pdf')]
     dados_extraidos = []
 

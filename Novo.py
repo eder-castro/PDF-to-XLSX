@@ -13,19 +13,18 @@ path_to_poppler_binaries = r'C:\Users\eder.castro\AppData\Local\Programs\poppler
 pasta_PDFs = './PDFs'
 processados_selec = 0
 processados_img = 0
-problema_selec = 0
+problema_selec = []
 arquivos_para_reprocessar = 0
 arquivos_nao_processados = []
 dados_extraidos = []
+proc_selec = True
 
 def extrair_dados_PDFSelecionavel(caminho_arquivo):
     #print("Entrou em extrair_dados_PDFSelecionavel")
     global processados_selec
-    global nao_processados
     global arquivos_para_reprocessar
     with open(caminho_arquivo, "rb") as arquivo_pdf:
         reader = PyPDF2.PdfReader(arquivo_pdf)
-        #print(reader)
         texto = ""
         for page in reader.pages:
             texto += page.extract_text() or "-"
@@ -41,22 +40,24 @@ def extrair_dados_PDFSelecionavel(caminho_arquivo):
             problema_selec.append(arquivo)
         else:
             dados_extraidos.append(dados_extraidos_selec)
+            processados_selec += 1
+        # print("processados_selec", processados_selec)
+        # print("arquivos_para_reprocessar", arquivos_para_reprocessar)
     return dados_extraidos_selec
 
 def extrair_dados_PDFImagem(arquivo):
     #print("Entrou em extrair_dados_PDFImagem")
-    global qt_arquivos_img
     global processados_img
     """Extrai dados relevantes de uma imagem de NF com tentativas de pré-processamento para todos os campos faltantes."""
     try:
-        processados_img += 1
         imagem_pil_original = Image.open(arquivo)#.convert('L')
         #print("Chama Imagem para: ", arquivo)
         texto_original = pytesseract.image_to_string(imagem_pil_original, lang='por', config='--psm 6 --oem 3')
         dados_extraidos_img = extrair_campos(texto_original)
+        #print(dados_extraidos_img)
         #print("*****************    ORIGINAL    *****************\n",texto_original)
         # Filtros a serem testados
-        filtros = ['max', 'median', 'unsharp_mask', 'sharpen', 'minfilter', 'contour',
+        filtros = ['max','median', 'minfilter', 'unsharp_mask', 'sharpen', 'contour',
                    'emboss','find_edges', 'edge_enhance', 'edge_enhance_more', 'detail', 'blur','smooth','smooth_more']
         campos_faltantes_atual = [key for key, value in dados_extraidos_img.items() if value is None]
         #print(f"Campos faltantes iniciais: {campos_faltantes_atual}")
@@ -84,11 +85,7 @@ def extrair_dados_PDFImagem(arquivo):
                 # Esta é a mudança chave para garantir que a lista esteja sempre atualizada
                 campos_faltantes_atual = [key for key, value in dados_extraidos_img.items() if value is None]
                 #print(f"Campos faltantes após filtro '{filtro}': {campos_faltantes_atual}")
-        #print(f"Texto extraído de {arquivo} (original):\n{texto_original}")
-        #print(f"Dados extraídos de {arquivo}:\n{dados_nf}")
-        #print(dados_extraidos_img)
-        #print(arquivos_nao_processados)
-        #print(dados_extraidos_img)
+        #print(dados_extraidos)
         return dados_extraidos_img
     except Exception as e:
         print(f"Erro ao processar {arquivo}: {e}")
@@ -106,11 +103,10 @@ def extrair_campos(texto):
     "Valor_Total": None
     }
 
-    lista_num_nf = Extracao.extrai_numero_nota_pdf_selecionavel(texto), Extracao.extrai_numero_nota_pdf_imagem(texto)
-    if lista_num_nf[0] is not None:
-        dados_nf["Numero_Nota"] = lista_num_nf[0]
+    if proc_selec == True:
+        dados_nf["Numero_Nota"] = Extracao.extrai_numero_nota_pdf_selecionavel(texto)
     else:
-        dados_nf["Numero_Nota"] = lista_num_nf[1]
+        dados_nf["Numero_Nota"] = Extracao.extrai_numero_nota_pdf_imagem(texto)
     dados_nf["Data_Emissao"] = Extracao.extrai_data_emissao(texto)
     lista_CNPJs = Extracao.extrai_documentos(texto, Extracao.extrai_Cnpjs, Extracao.extrai_Cpfs)
     dados_nf["CNPJ_Prestador"] = lista_CNPJs[0]
@@ -210,27 +206,31 @@ if __name__ == "__main__":
                     subpastas_contadas += 1
                 else:
                     arquivos_contados += 1
-                    #print("- - - - - Tentando processar o arquivo com a função selec - - - - -")
+                    print("- - - - - Processando arquivo ", arquivo, " com a função SELEC - - - - -")
+                    proc_selec = True
                     if not extrair_dados_PDFSelecionavel(caminho_completo_sub_item):
                         print("Nenhum arquivo Selec")
             #print(f"Total de pastas em {nome_subpasta} = {subpastas_contadas}")
-            processados_selec = arquivos_contados - arquivos_para_reprocessar
             # Após tentar processar todos os arquivos da pasta com a função principal,
             # itera sobre os que não foram processados para a função secundária.
+            print(f"\n--- Total de arquivos processados pelo Selec = {processados_selec} ---")
             if arquivos_nao_processados:
-                #print(f"\n--- Reprocessando {arquivos_para_reprocessar} arquivos em {nome_subpasta} que não foram processados inicialmente ---")
+                print(f"\n--- Reprocessando {arquivos_para_reprocessar} arquivos em {nome_subpasta} que não foram processados inicialmente ---")
                 for arquivo_reprocessar in arquivos_nao_processados:
+                    print("- - - - - Reprocessando arquivo ", arquivo_reprocessar, " com a função IMG - - - - -")
+                    proc_selec = False
+                    processados_img += 1
                     executa_PDFImg(arquivo_reprocessar)
             # else:
             #     print(f"\nTodos os arquivos em {nome_subpasta} foram processados pela função PDF_selec.")
+            # print(f"--- Saindo da subpasta: {nome_subpasta} ---")
             arquivos_para_reprocessar = 0
             arquivos_nao_processados.clear()
-            # print(f"Total de arquivos processados pelo Selec em {nome_subpasta} = {processados_selec}")
-            # print(f"Total de arquivos processados pelo Img em {nome_subpasta} = {processados_img}")
-            # print(f"{processados_selec + processados_img} arquivos processados, de um Total de {arquivos_contados} arquivos na pasta. ")
-            # print(f"--- Saindo da subpasta: {nome_subpasta} ---")
-            processados_selec = 0
-            problema_selec = 0
-            processados_img = 0
+    print("\n- - - - - - - - - - - - - - - - - - DADOS  EXTRAÍDOS - - - - - - - - - - - - - - - - - -")
     for item in dados_extraidos:
         print(item)
+    print("- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n")
+    print(f"Total de arquivos processados pelo Selec = {processados_selec}")
+    print(f"Total de arquivos processados pelo Img = {processados_img}")
+    print(f"TOTAL DE {processados_selec + processados_img} ARQUIVOS PROCESSADOS...")
+    print(problema_selec)

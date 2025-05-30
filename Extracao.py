@@ -4,7 +4,7 @@ def extrai_numero_nota_pdf_imagem(texto):
     #print("Entrou em numero nota")
     # Número da Nota
     numero_nota = None
-    numero_nota_match = re.search(r'(?:s:\s?= |Barueri |os\s+qo |no;\s+É |qi |ano:\s*= |nos\s+O |one\s+|“ Co |O\s+a |O\s+asse |O\s+ses |ana|Ciao:)\s*([^\s]+)', texto, re.DOTALL)
+    numero_nota_match = re.search(r'(?:s:\s?= |Barueri |os\s+qo |De:\s*= |oaa»\s*|Ei |no;\s+É |qi -|ano:\s*= |nos\s+O |one\s+|“ Co |“ oo|O\s+a |O\s+asse |O\s+ses |ana|Ciao:)\s*([^\s]+)', texto, re.DOTALL)
     if numero_nota_match:
         numero_nota = numero_nota_match.group(1).strip()
         #print("============================ 0",numero_nota)
