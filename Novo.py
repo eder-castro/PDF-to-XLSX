@@ -6,18 +6,44 @@ import os
 from pdf2image import convert_from_path
 import PyPDF2
 import Extracao
+from datetime import datetime
+from dateutil import parser
 
 # Caminho para o executável do Poppler (ajuste se necessário)
 path_to_poppler_binaries = r'C:\Users\eder.castro\AppData\Local\Programs\poppler-24.08.0\Library\bin' # Substitua pelo seu caminho real
 
 pasta_PDFs = './PDFs'
-processados_selec = 0
+processados_selec = 0   
 processados_img = 0
 problema_selec = []
 arquivos_para_reprocessar = 0
 arquivos_nao_processados = []
 dados_extraidos = []
 proc_selec = True
+
+def parse_data_emissao(data_str):
+    try:
+        dt = parser.parse(data_str)
+        if dt.tzinfo is not None:
+            dt = dt.replace(tzinfo=None)
+        return dt
+    except Exception:
+        try:
+            return datetime.strptime(data_str, "%d/%m/%Y")
+        except Exception:
+            print(f"[AVISO] Data inválida ignorada: {data_str}")
+            return None
+
+def formatar_valor(chave, valor):
+    if chave == "Data_Emissao":
+        # Exemplo: formatar para ISO
+        return parse_data_emissao(valor) if valor else valor
+    elif chave == "Nome_Arquivo":
+        return valor
+    elif chave == "Valor_Total":
+        return float(valor.replace(",", ".")) if isinstance(valor, str) else float(valor)
+    else:
+        return int(valor) if valor and valor.isdigit() else valor
 
 def extrair_dados_PDFSelecionavel(caminho_arquivo):
     #print("Entrou em extrair_dados_PDFSelecionavel")
@@ -100,7 +126,8 @@ def extrair_campos(texto):
     "CNPJ_Tomador": None,
     "Pedido": None,
     "Contrato": None,
-    "Valor_Total": None
+    "Valor_Total": None,
+    "Nome_Arquivo": None
     }
 
     if proc_selec == True:
@@ -115,6 +142,7 @@ def extrair_campos(texto):
     dados_nf["Pedido"] = lista_pedido_contrato[0]
     dados_nf["Contrato"] = lista_pedido_contrato[1]
     dados_nf["Valor_Total"] = Extracao.extrai_valores(texto)
+    dados_nf["Nome_Arquivo"] = nome_arquivo
     #print("Dados extraídos --------------------------------------------------\n", dados_nf)
     #dados_extraidos.append(dados_nf)
     return dados_nf
@@ -171,7 +199,7 @@ def executa_PDFImg(arquivo):
         caminho_completo_pdf = os.path.join(caminho_completo_item, arquivo)
         try: # tente converter o pdf em imagem usando o poppler e extrair as informações
             # Converta o PDF para uma lista de objetos PIL Image
-            imagens = convert_from_path(caminho_completo_pdf, poppler_path=path_to_poppler_binaries)
+            imagens = convert_from_path(caminho_completo_pdf, poppler_path=path_to_poppler_binaries, dpi=600)
             for i, imagem in enumerate(imagens):
                 # Salve cada página como uma imagem temporária
                 nome_arquivo_imagem = f'temp_page_{os.path.splitext(arquivo)[0]}_{i}.png'
@@ -208,6 +236,7 @@ if __name__ == "__main__":
                     arquivos_contados += 1
                     print("- - - - - Processando arquivo ", arquivo, " com a função SELEC - - - - -")
                     proc_selec = True
+                    nome_arquivo = arquivo
                     if not extrair_dados_PDFSelecionavel(caminho_completo_sub_item):
                         print("Nenhum arquivo Selec")
             #print(f"Total de pastas em {nome_subpasta} = {subpastas_contadas}")
@@ -217,9 +246,10 @@ if __name__ == "__main__":
             if arquivos_nao_processados:
                 print(f"\n--- Reprocessando {arquivos_para_reprocessar} arquivos em {nome_subpasta} que não foram processados inicialmente ---")
                 for arquivo_reprocessar in arquivos_nao_processados:
-                    print("- - - - - Reprocessando arquivo ", arquivo_reprocessar, " com a função IMG - - - - -")
+                    print("- - - - - Reprocessando arquivo ", arquivo_reprocessar, "com a função IMG - - - - -")
                     proc_selec = False
                     processados_img += 1
+                    nome_arquivo = arquivo_reprocessar
                     executa_PDFImg(arquivo_reprocessar)
             # else:
             #     print(f"\nTodos os arquivos em {nome_subpasta} foram processados pela função PDF_selec.")
